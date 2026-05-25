@@ -1,0 +1,91 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="AccountingProject.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="NewFolder\**" />
+    <Content Remove="NewFolder\**" />
+    <EmbeddedResource Remove="NewFolder\**" />
+    <None Remove="NewFolder\**" />
+
+    <!-- Exclude local build/publish artifacts from being packed into publish output -->
+    <Compile Remove="publish\**" />
+    <Compile Remove="publish-clean\**" />
+    <Compile Remove="publish-retest\**" />
+    <Compile Remove="publish-*\**" />
+    <Compile Remove="tmp-build\**" />
+    <Compile Remove="_cfg_build_out\**" />
+    <Compile Remove="_compile_verify_out\**" />
+    <Compile Remove="_ed_validate_build\**" />
+    <Compile Remove="_jwt_build_out\**" />
+    <Compile Remove="_jwt_build_out2\**" />
+    <Compile Remove="_upload_build\**" />
+    <Compile Remove="_upload_build2\**" />
+
+    <Content Remove="publish\**" />
+    <Content Remove="publish-clean\**" />
+    <Content Remove="publish-retest\**" />
+    <Content Remove="publish-*\**" />
+    <Content Remove="tmp-build\**" />
+    <Content Remove="_cfg_build_out\**" />
+    <Content Remove="_compile_verify_out\**" />
+    <Content Remove="_ed_validate_build\**" />
+    <Content Remove="_jwt_build_out\**" />
+    <Content Remove="_jwt_build_out2\**" />
+    <Content Remove="_upload_build\**" />
+    <Content Remove="_upload_build2\**" />
+    <Content Remove="package-lock.json" />
+
+    <EmbeddedResource Remove="publish\**" />
+    <EmbeddedResource Remove="publish-clean\**" />
+    <EmbeddedResource Remove="publish-retest\**" />
+    <EmbeddedResource Remove="publish-*\**" />
+    <EmbeddedResource Remove="tmp-build\**" />
+    <EmbeddedResource Remove="_cfg_build_out\**" />
+    <EmbeddedResource Remove="_compile_verify_out\**" />
+    <EmbeddedResource Remove="_ed_validate_build\**" />
+    <EmbeddedResource Remove="_jwt_build_out\**" />
+    <EmbeddedResource Remove="_jwt_build_out2\**" />
+    <EmbeddedResource Remove="_upload_build\**" />
+    <EmbeddedResource Remove="_upload_build2\**" />
+
+    <None Remove="publish\**" />
+    <None Remove="publish-clean\**" />
+    <None Remove="publish-retest\**" />
+    <None Remove="publish-*\**" />
+    <None Remove="tmp-build\**" />
+    <None Remove="_cfg_build_out\**" />
+    <None Remove="_compile_verify_out\**" />
+    <None Remove="_ed_validate_build\**" />
+    <None Remove="_jwt_build_out\**" />
+    <None Remove="_jwt_build_out2\**" />
+    <None Remove="_upload_build\**" />
+    <None Remove="_upload_build2\**" />
+    <None Remove="package-lock.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ClosedXML" Version="0.105.0" />
+    <PackageReference Include="DocumentFormat.OpenXml" Version="3.5.1" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.4">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.4" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.4">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.4" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+  </ItemGroup>
+
+</Project>

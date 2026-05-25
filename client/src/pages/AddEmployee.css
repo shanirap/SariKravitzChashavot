@@ -1,0 +1,243 @@
+/* ════════════════════════════════════════════
+   Payroll Form — AddEmployee
+   Dense, Excel-like layout
+════════════════════════════════════════════ */
+
+.pf-wrap {
+  font-size: 0.78rem;
+  font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+  direction: rtl;
+  color: #111;
+}
+
+/* ─── Block (section with title) ─── */
+.pf-block {
+  border: 1px solid #999;
+  border-radius: 3px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.pf-block-title {
+  background: #b8cce4;
+  font-weight: 700;
+  font-size: 0.78rem;
+  padding: 3px 10px;
+  border-bottom: 1px solid #999;
+  text-align: center;
+  letter-spacing: 0.02em;
+}
+.pf-title-blue  { background: #b8cce4; }
+.pf-title-green { background: #c6efce; }
+
+.pf-block-body {
+  padding: 5px 8px;
+}
+
+/* ─── Rows ─── */
+.pf-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 2px 0;
+}
+.pf-row-gap { gap: 14px; }
+
+/* ─── Field (label + input stacked) ─── */
+.pf-field {
+  display: flex;
+  flex-direction: column;
+}
+.pf-lbl-top {
+  font-size: 0.67rem;
+  font-weight: 700;
+  color: #444;
+  margin-bottom: 1px;
+  white-space: nowrap;
+}
+
+/* ─── Checkboxes row ─── */
+.pf-checks {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding-bottom: 2px;
+}
+.pf-check {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ─── Input types ─── */
+.pf-txt {
+  height: 21px;
+  font-size: 0.75rem;
+  padding: 1px 4px;
+  border: 1px solid #888;
+  border-radius: 2px;
+}
+.pf-num {
+  height: 21px;
+  font-size: 0.75rem;
+  padding: 1px 3px;
+  border: 1px solid #888;
+  border-radius: 2px;
+  width: 60px;
+  text-align: center;
+}
+.pf-dt {
+  height: 21px;
+  font-size: 0.72rem;
+  padding: 1px 2px;
+  border: 1px solid #888;
+  border-radius: 2px;
+  width: 112px;
+}
+.pf-sel {
+  height: 21px;
+  font-size: 0.74rem;
+  padding: 0 2px;
+  border: 1px solid #888;
+  border-radius: 2px;
+}
+
+input:focus, select:focus {
+  outline: none;
+  border-color: #0d6efd;
+  box-shadow: 0 0 0 1px #0d6efd55;
+}
+
+/* ─── Children row ─── */
+.pf-children-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 5px;
+  padding: 3px 0;
+}
+.pf-child-title {
+  font-weight: 700;
+  font-size: 0.72rem;
+  color: #555;
+  padding-bottom: 3px;
+  white-space: nowrap;
+}
+.pf-child-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+.pf-child-num {
+  font-size: 0.64rem;
+  font-weight: 700;
+  color: #666;
+}
+.pf-dt-child {
+  width: 105px !important;
+}
+
+/* ─── Two grade columns side by side ─── */
+.pf-grades {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+@media (max-width: 850px) {
+  .pf-grades { grid-template-columns: 1fr; }
+}
+.pf-grade { height: 100%; }
+
+/* ─── Inner table (inside grade block) ─── */
+.pf-inner-tbl {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 2px;
+}
+.pf-inner-tbl td {
+  padding: 2px 3px;
+  vertical-align: middle;
+}
+.pf-lbl {
+  font-size: 0.69rem;
+  font-weight: 700;
+  color: #333;
+  white-space: nowrap;
+  padding-left: 6px !important;
+  text-align: right;
+}
+
+/* ─── Sub-section header (תפקיד, הגדרות) ─── */
+.pf-sub-hdr {
+  background: #e2efda;
+  font-weight: 700;
+  font-size: 0.7rem;
+  text-align: center;
+  padding: 2px 4px;
+  border-top: 1px solid #bbb;
+  border-bottom: 1px solid #bbb;
+  margin: 3px 0 2px;
+  color: #1a1a2e;
+}
+
+/* ─── Bonus table ─── */
+.pf-bonus-tbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.72rem;
+}
+.pf-bonus-tbl th {
+  background: #f0f2f5;
+  text-align: center;
+  font-weight: 700;
+  padding: 2px 4px;
+  border: 1px solid #ccc;
+  font-size: 0.68rem;
+}
+.pf-bonus-tbl td {
+  border: 1px solid #ddd;
+  padding: 2px 4px;
+  vertical-align: middle;
+}
+.pf-calc {
+  color: #888;
+  font-size: 0.7rem;
+}
+
+/* ─── Pension/Fund table ─── */
+.pf-gml-tbl {
+  border-collapse: collapse;
+  font-size: 0.74rem;
+  width: auto;
+}
+.pf-gml-tbl th {
+  background: #dce6f1;
+  border: 1px solid #aaa;
+  padding: 2px 8px;
+  text-align: center;
+  font-weight: 700;
+}
+.pf-gml-tbl td {
+  border: 1px solid #ccc;
+  padding: 2px 6px;
+  vertical-align: middle;
+}
+.pf-td-label {
+  font-weight: 700;
+  white-space: nowrap;
+  background: #f7f9fc;
+}
+
+/* ─── Action buttons ─── */
+.pf-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 0 24px;
+}

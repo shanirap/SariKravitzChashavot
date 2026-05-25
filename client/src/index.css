@@ -1,0 +1,195 @@
+/* ══════════════════════════════════════════
+   צבעי מותג: שרי קרביץ
+   ══════════════════════════════════════════ */
+:root {
+  --brand-dark:  #1b2537;
+  --brand-green: #3bba8c;
+  --brand-red:   #e63946;
+  --brand-wine:  #8b1a2d;
+  --brand-wine-dark: #6e1423;
+  --brand-light: #f4f6f9;
+}
+
+body {
+  direction: rtl;
+  background-color: var(--brand-light);
+  font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+/* ── Navbar ── */
+.navbar-dark-custom {
+  background: var(--brand-dark) !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  position: sticky;
+  top: 0;
+  z-index: 1030;
+}
+
+.navbar-dark-custom .nav-link {
+  color: rgba(255,255,255,0.82) !important;
+  font-weight: 500;
+}
+.navbar-dark-custom .nav-link:hover {
+  color: var(--brand-green) !important;
+}
+
+/* ── Card headers & Modals ── */
+.card-header,
+.modal-header {
+  background: var(--brand-dark) !important;
+  color: white !important;
+  border-radius: 12px 12px 0 0 !important;
+  padding: 1rem 1.5rem;
+  font-weight: 600;
+}
+
+.modal-header { border-radius: 0 !important; }
+.modal-header .btn-close { filter: invert(1); }
+
+/* ── Cards ── */
+.card {
+  border: none !important;
+  border-radius: 12px !important;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.08) !important;
+}
+
+/* ── Table ── */
+.table th {
+  background-color: #edf0f4;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.table td { vertical-align: middle; }
+
+/* ── Breadcrumb ── */
+.breadcrumb-area {
+  background: white;
+  border-radius: 10px;
+  padding: 0.75rem 1.25rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.breadcrumb { margin-bottom: 0; }
+.breadcrumb-item a { color: var(--brand-green); text-decoration: none; }
+.breadcrumb-item a:hover { color: var(--brand-dark); }
+
+/* ── Info card ── */
+.info-card {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+  margin-bottom: 1.5rem;
+  border-right: 4px solid var(--brand-green) !important;
+}
+
+.info-card .info-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--brand-dark);
+  border-bottom: 2px solid #e9ecef;
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+/* ── Fields ── */
+.field-label {
+  font-weight: 600;
+  color: #6c757d;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.field-value { color: #212529; font-size: 1rem; }
+
+/* ── Page title ── */
+.page-title {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--brand-dark);
+  margin-bottom: 1.5rem;
+}
+
+/* ── Badge month ── */
+.badge-month {
+  background-color: #e5f7ef;
+  color: var(--brand-green);
+  border-radius: 20px;
+  padding: 0.3em 0.8em;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ── Buttons — override Bootstrap primary ── */
+.btn-primary {
+  background-color: var(--brand-green) !important;
+  border-color: var(--brand-green) !important;
+  color: #fff !important;
+}
+.btn-primary:hover, .btn-primary:focus {
+  background-color: #31a67a !important;
+  border-color: #31a67a !important;
+}
+.btn-primary:disabled {
+  background-color: var(--brand-green) !important;
+  opacity: 0.65;
+}
+
+.btn-outline-primary {
+  color: var(--brand-green) !important;
+  border-color: var(--brand-green) !important;
+}
+.btn-outline-primary:hover {
+  background-color: var(--brand-green) !important;
+  color: white !important;
+}
+
+/* ── Buttons — override Bootstrap info (cyan → wine red) ── */
+.btn-info {
+  background-color: var(--brand-wine) !important;
+  border-color: var(--brand-wine) !important;
+  color: #fff !important;
+}
+.btn-info:hover, .btn-info:focus {
+  background-color: var(--brand-wine-dark) !important;
+  border-color: var(--brand-wine-dark) !important;
+  color: #fff !important;
+}
+
+.btn-outline-info {
+  color: var(--brand-wine) !important;
+  border-color: var(--brand-wine) !important;
+  background-color: transparent !important;
+}
+.btn-outline-info:hover, .btn-outline-info:focus {
+  background-color: var(--brand-wine) !important;
+  border-color: var(--brand-wine) !important;
+  color: #fff !important;
+}
+
+/* text-info override (used for icons/text in cyan) */
+.text-info { color: var(--brand-wine) !important; }
+
+/* ── Links ── */
+a { color: var(--brand-green); }
+a:hover { color: var(--brand-dark); }
+
+/* ── Alerts ── */
+.alert { border-radius: 10px; }
+
+/* ── Misc ── */
+.btn-action { border-radius: 8px; }
+.navbar-brand { padding: 0.25rem 0; }
+
+.main-container {
+  max-width: 1200px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+/* ── text-primary override ── */
+.text-primary { color: var(--brand-green) !important; }
+
+/* ── Spinner ── */
+.spinner-border.text-primary { color: var(--brand-green) !important; }
