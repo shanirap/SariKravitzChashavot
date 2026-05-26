@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using AccountingProject.Domain;
 using Microsoft.EntityFrameworkCore;
 
 namespace AccountingProject.Models
@@ -24,6 +25,12 @@ namespace AccountingProject.Models
         [Column("שם_סמל_מוסד")]
         [Display(Name = "שם סמל מוסד")]
         public string? InstitutionSymbolName { get; set; }
+
+        [Required]
+        [MaxLength(20)]
+        [Column("סוג_מוסד")]
+        [Display(Name = "סוג מוסד")]
+        public string InstitutionType { get; set; } = InstitutionTypes.Default;
 
         [ForeignKey(nameof(EmployerId))]
         public Employer? Employer { get; set; }

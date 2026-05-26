@@ -1,3 +1,4 @@
+using System.Globalization;
 using AccountingProject.Contracts;
 using AccountingProject.Data;
 using AccountingProject.Domain;
@@ -119,21 +120,6 @@ namespace AccountingProject.Services
                         {
                             employee.IsDeleted = false;
                             employee.DeletedAtUtc = null;
-                            employee.FirstName = firstName;
-                            employee.LastName = lastName;
-                            employee.Gender = gender;
-                            employee.BirthDate = birthDate;
-                            employee.Phone = Normalize(Get("טל"));
-                            employee.ChildBirthDate1 = ParseDate(Get("תאריך_לידה_ילד_1"));
-                            employee.ChildBirthDate2 = ParseDate(Get("תאריך_לידה_ילד_2"));
-                            employee.ChildBirthDate3 = ParseDate(Get("תאריך_לידה_ילד_3"));
-                            employee.ChildBirthDate4 = ParseDate(Get("תאריך_לידה_ילד_4"));
-                            employee.ChildBirthDate5 = ParseDate(Get("תאריך_לידה_ילד_5"));
-                            employee.ChildBirthDate6 = ParseDate(Get("תאריך_לידה_ילד_6"));
-                            employee.ChildBirthDate7 = ParseDate(Get("תאריך_לידה_ילד_7"));
-                            employee.ChildBirthDate8 = ParseDate(Get("תאריך_לידה_ילד_8"));
-                            employee.ChildBirthDate9 = ParseDate(Get("תאריך_לידה_ילד_9"));
-                            employee.ChildBirthDate10 = ParseDate(Get("תאריך_לידה_ילד_10"));
                         }
                         else
                         {
@@ -141,27 +127,14 @@ namespace AccountingProject.Services
                             {
                                 EmployerId = employer.Id,
                                 IdNumber = rowResult.IdNumber,
-                                FirstName = firstName,
-                                LastName = lastName,
-                                Gender = gender,
-                                BirthDate = birthDate,
-                                Phone = Normalize(Get("טל")),
-                                ChildBirthDate1 = ParseDate(Get("תאריך_לידה_ילד_1")),
-                                ChildBirthDate2 = ParseDate(Get("תאריך_לידה_ילד_2")),
-                                ChildBirthDate3 = ParseDate(Get("תאריך_לידה_ילד_3")),
-                                ChildBirthDate4 = ParseDate(Get("תאריך_לידה_ילד_4")),
-                                ChildBirthDate5 = ParseDate(Get("תאריך_לידה_ילד_5")),
-                                ChildBirthDate6 = ParseDate(Get("תאריך_לידה_ילד_6")),
-                                ChildBirthDate7 = ParseDate(Get("תאריך_לידה_ילד_7")),
-                                ChildBirthDate8 = ParseDate(Get("תאריך_לידה_ילד_8")),
-                                ChildBirthDate9 = ParseDate(Get("תאריך_לידה_ילד_9")),
-                                ChildBirthDate10 = ParseDate(Get("תאריך_לידה_ילד_10"))
                             };
                             _db.Employees.Add(employee);
                         }
 
                         localEmployeesByEmployerAndTz[employeeKey] = employee;
                     }
+
+                    ApplyEmployeePersonalFields(employee, Get, firstName, lastName, gender, birthDate);
 
                     var employmentKey = (rowResult.IdNumber, employer.Id, academicYear);
                     if (localEmploymentKeys.Contains(employmentKey))
@@ -392,7 +365,7 @@ namespace AccountingProject.Services
         {
             var cols = new List<string>
             {
-                "תז", "שם_פרטי", "שם_משפחה", "מין", "תאריך_לידה", "טל",
+                "תז", "מספר_עובד_בעוקץ", "שם_פרטי", "שם_משפחה", "מין", "תאריך_לידה", "טל",
                 "תאריך_לידה_ילד_1", "תאריך_לידה_ילד_2", "תאריך_לידה_ילד_3", "תאריך_לידה_ילד_4", "תאריך_לידה_ילד_5",
                 "תאריך_לידה_ילד_6", "תאריך_לידה_ילד_7", "תאריך_לידה_ילד_8", "תאריך_לידה_ילד_9", "תאריך_לידה_ילד_10",
                 "שנת_לימודים"
@@ -641,6 +614,56 @@ namespace AccountingProject.Services
 
         private static DateOnly? ParseDate(string? value) =>
             DateOnly.TryParse(value, out var date) ? date : null;
+
+        private static void ApplyEmployeePersonalFields(
+            Employee employee,
+            Func<string, string> get,
+            string firstName,
+            string lastName,
+            string gender,
+            DateOnly birthDate)
+        {
+            employee.FirstName = firstName;
+            employee.LastName = lastName;
+            employee.Gender = gender;
+            employee.BirthDate = birthDate;
+            employee.Phone = Normalize(get("טל"));
+            employee.EmployeeNumber = ParseOptionalEmployeeNumber(get);
+            employee.ChildBirthDate1 = ParseDate(get("תאריך_לידה_ילד_1"));
+            employee.ChildBirthDate2 = ParseDate(get("תאריך_לידה_ילד_2"));
+            employee.ChildBirthDate3 = ParseDate(get("תאריך_לידה_ילד_3"));
+            employee.ChildBirthDate4 = ParseDate(get("תאריך_לידה_ילד_4"));
+            employee.ChildBirthDate5 = ParseDate(get("תאריך_לידה_ילד_5"));
+            employee.ChildBirthDate6 = ParseDate(get("תאריך_לידה_ילד_6"));
+            employee.ChildBirthDate7 = ParseDate(get("תאריך_לידה_ילד_7"));
+            employee.ChildBirthDate8 = ParseDate(get("תאריך_לידה_ילד_8"));
+            employee.ChildBirthDate9 = ParseDate(get("תאריך_לידה_ילד_9"));
+            employee.ChildBirthDate10 = ParseDate(get("תאריך_לידה_ילד_10"));
+        }
+
+        private static int? ParseOptionalEmployeeNumber(Func<string, string> get)
+        {
+            var raw = GetFirstPresent(get, "מספר_עובד_בעוקץ", "מספר_עובד");
+            if (string.IsNullOrWhiteSpace(raw))
+                return null;
+            if (!int.TryParse(raw.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var n))
+                throw new InvalidOperationException("מספר_עובד_בעוקץ אינו תקין.");
+            if (n <= 0)
+                throw new InvalidOperationException("מספר_עובד_בעוקץ חייב להיות מספר חיובי.");
+            return n;
+        }
+
+        private static string GetFirstPresent(Func<string, string> get, params string[] keys)
+        {
+            foreach (var key in keys)
+            {
+                var v = get(key);
+                if (!string.IsNullOrWhiteSpace(v))
+                    return v;
+            }
+
+            return string.Empty;
+        }
 
         private static XLWorkbook OpenWorkbookOrThrow(IFormFile file)
         {

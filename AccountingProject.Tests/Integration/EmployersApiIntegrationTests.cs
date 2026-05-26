@@ -43,11 +43,21 @@ public sealed class EmployersApiIntegrationTests
         var symResp = await client.PostAsJsonAsync($"/api/employers/{id}/institution-symbols",
             new EmployerInstitutionSymbolDto { InstitutionSymbol = "SYM1", InstitutionSymbolName = "School A" });
         symResp.EnsureSuccessStatusCode();
+        var createdSymbol = await symResp.Content.ReadFromJsonAsync<SymbolJson>(Json);
+        Assert.NotNull(createdSymbol);
 
         var symbolsGet = await client.GetAsync($"/api/employers/{id}/institution-symbols");
         symbolsGet.EnsureSuccessStatusCode();
         var symbols = await symbolsGet.Content.ReadFromJsonAsync<List<SymbolJson>>(Json);
         Assert.Single(symbols!);
+        Assert.Equal("אחר", symbols![0].InstitutionType);
+
+        var updateResp = await client.PutAsJsonAsync(
+            $"/api/employers/{id}/institution-symbols/{createdSymbol!.Id}",
+            new EmployerInstitutionSymbolUpdateDto { InstitutionType = "גן", InstitutionSymbolName = "School A" });
+        updateResp.EnsureSuccessStatusCode();
+        var updated = await updateResp.Content.ReadFromJsonAsync<SymbolJson>(Json);
+        Assert.Equal("גן", updated!.InstitutionType);
 
         var exportResp = await client.GetAsync($"/api/employers/{id}/export/excel");
         exportResp.EnsureSuccessStatusCode();
@@ -111,5 +121,6 @@ public sealed class EmployersApiIntegrationTests
     {
         public int Id { get; set; }
         public string InstitutionSymbol { get; set; } = "";
+        public string? InstitutionType { get; set; }
     }
 }

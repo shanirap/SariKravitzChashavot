@@ -242,6 +242,14 @@ namespace AccountingProject.Migrations
                         .HasColumnType("nvarchar(max)")
                         .HasColumnName("שם_סמל_מוסד");
 
+                    b.Property<string>("InstitutionType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("אחר")
+                        .HasColumnName("סוג_מוסד");
+
                     b.HasKey("Id");
 
                     b.HasIndex("EmployerId", "InstitutionSymbol")
@@ -445,6 +453,235 @@ namespace AccountingProject.Migrations
                     b.ToTable("נתוני_העסקה_מקטע");
                 });
 
+            modelBuilder.Entity("AccountingProject.Models.PayrollMonthlyInputBatch", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("מזהה_אצווה");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AcademicYear")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("שנת_לימודים");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("נוצר_בתאריך");
+
+                    b.Property<DateTime?>("DeletedAtUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("נמחק_בתאריך");
+
+                    b.Property<int>("EmployerId")
+                        .HasColumnType("int")
+                        .HasColumnName("מזהה_מעסיק");
+
+                    b.Property<int>("GregorianYear")
+                        .HasColumnType("int")
+                        .HasColumnName("שנה_גרגוריאנית");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit")
+                        .HasColumnName("פעיל");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit")
+                        .HasColumnName("נמחק");
+
+                    b.Property<int>("Month")
+                        .HasColumnType("int")
+                        .HasColumnName("חודש");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("שם_קובץ_מקורי");
+
+                    b.Property<int>("RowsCount")
+                        .HasColumnType("int")
+                        .HasColumnName("מספר_שורות");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("עודכן_בתאריך");
+
+                    b.Property<DateTime>("UploadedAtUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("הועלה_בתאריך");
+
+                    b.Property<string>("UploadedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("הועלה_על_ידי");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmployerId", "AcademicYear", "Month", "GregorianYear")
+                        .IsUnique()
+                        .HasFilter("[פעיל] = 1 AND [נמחק] = 0");
+
+                    b.ToTable("קלט_עוקץ_חודשי_אצווה");
+                });
+
+            modelBuilder.Entity("AccountingProject.Models.PayrollMonthlyInputRow", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("מזהה_שורה");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AcademicYear")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("שנת_לימודים");
+
+                    b.Property<decimal?>("AgeHours")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("שעות_גיל");
+
+                    b.Property<int>("BatchId")
+                        .HasColumnType("int")
+                        .HasColumnName("מזהה_אצווה");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("נוצר_בתאריך");
+
+                    b.Property<DateTime?>("DeletedAtUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("נמחק_בתאריך");
+
+                    b.Property<decimal?>("DoubleDegree")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("כפל_תואר");
+
+                    b.Property<int>("EmployerId")
+                        .HasColumnType("int")
+                        .HasColumnName("מזהה_מעסיק");
+
+                    b.Property<string>("FullName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("שם_מלא");
+
+                    b.Property<decimal?>("GeneralMultiplier")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("הכפלה_כללית");
+
+                    b.Property<string>("Grade")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("דרגה");
+
+                    b.Property<int>("GregorianYear")
+                        .HasColumnType("int")
+                        .HasColumnName("שנה_גרגוריאנית");
+
+                    b.Property<string>("IdNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("תז");
+
+                    b.Property<string>("InstitutionSymbol")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("סמל_מוסד");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit")
+                        .HasColumnName("נמחק");
+
+                    b.Property<bool>("IsManualEdited")
+                        .HasColumnType("bit")
+                        .HasColumnName("נערך_ידנית");
+
+                    b.Property<decimal?>("JobBase")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("בסיס_משרה");
+
+                    b.Property<decimal?>("JobPercent")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("אחוז_משרה");
+
+                    b.Property<string>("ManualEditNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("הערת_עריכה_ידנית");
+
+                    b.Property<int>("Month")
+                        .HasColumnType("int")
+                        .HasColumnName("חודש");
+
+                    b.Property<string>("OketzEmployeeNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("מספר_עובד_בעוקץ");
+
+                    b.Property<string>("RawCellsJson")
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("תאים_גולמיים_json");
+
+                    b.Property<string>("Role")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("תפקיד");
+
+                    b.Property<decimal?>("Seniority")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("ותק");
+
+                    b.Property<int?>("SourceExcelRowNumber")
+                        .HasColumnType("int")
+                        .HasColumnName("מספר_שורה_באקסל");
+
+                    b.Property<decimal?>("TrainingBenefits")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("גמולי_השתלמות");
+
+                    b.Property<decimal?>("TrainingFund")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("קרן_השתלמות");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("עודכן_בתאריך");
+
+                    b.Property<decimal?>("WeeklyHours")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("שעות_שבועיות");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BatchId");
+
+                    b.HasIndex("IdNumber");
+
+                    b.HasIndex("InstitutionSymbol");
+
+                    b.HasIndex("OketzEmployeeNumber");
+
+                    b.HasIndex("EmployerId", "AcademicYear", "Month", "GregorianYear");
+
+                    b.ToTable("קלט_עוקץ_חודשי_שורה");
+                });
+
             modelBuilder.Entity("AccountingProject.Models.User", b =>
                 {
                     b.Property<int>("Id")
@@ -534,6 +771,28 @@ namespace AccountingProject.Migrations
                     b.Navigation("EmploymentData");
                 });
 
+            modelBuilder.Entity("AccountingProject.Models.PayrollMonthlyInputBatch", b =>
+                {
+                    b.HasOne("AccountingProject.Models.Employer", "Employer")
+                        .WithMany()
+                        .HasForeignKey("EmployerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Employer");
+                });
+
+            modelBuilder.Entity("AccountingProject.Models.PayrollMonthlyInputRow", b =>
+                {
+                    b.HasOne("AccountingProject.Models.PayrollMonthlyInputBatch", "Batch")
+                        .WithMany("Rows")
+                        .HasForeignKey("BatchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Batch");
+                });
+
             modelBuilder.Entity("AccountingProject.Models.Employee", b =>
                 {
                     b.Navigation("EmploymentData");
@@ -549,6 +808,11 @@ namespace AccountingProject.Migrations
             modelBuilder.Entity("AccountingProject.Models.EmploymentData", b =>
                 {
                     b.Navigation("Slots");
+                });
+
+            modelBuilder.Entity("AccountingProject.Models.PayrollMonthlyInputBatch", b =>
+                {
+                    b.Navigation("Rows");
                 });
 #pragma warning restore 612, 618
         }

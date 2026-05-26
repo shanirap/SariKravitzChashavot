@@ -194,13 +194,7 @@ namespace AccountingProject.Controllers
             if (employer == null) return NotFound();
 
             var symbols = await _employerService.GetInstitutionSymbolsAsync(id);
-            return Ok(symbols.Select(s => new
-            {
-                s.Id,
-                s.EmployerId,
-                s.InstitutionSymbol,
-                s.InstitutionSymbolName
-            }));
+            return Ok(symbols.Select(MapInstitutionSymbol));
         }
 
         [HttpPost("{id}/institution-symbols")]
@@ -210,13 +204,17 @@ namespace AccountingProject.Controllers
             if (symbol == null && message == null) return NotFound();
             if (symbol == null) return BadRequest(new { message });
 
-            return Ok(new
-            {
-                symbol.Id,
-                symbol.EmployerId,
-                symbol.InstitutionSymbol,
-                symbol.InstitutionSymbolName
-            });
+            return Ok(MapInstitutionSymbol(symbol));
+        }
+
+        [HttpPut("{id}/institution-symbols/{symbolId}")]
+        public async Task<IActionResult> UpdateInstitutionSymbol(int id, int symbolId, [FromBody] EmployerInstitutionSymbolUpdateDto dto)
+        {
+            var (symbol, message) = await _employerService.UpdateInstitutionSymbolAsync(id, symbolId, dto);
+            if (symbol == null && message == null) return NotFound();
+            if (symbol == null) return BadRequest(new { message });
+
+            return Ok(MapInstitutionSymbol(symbol));
         }
 
         [HttpDelete("{id}/institution-symbols/{symbolId}")]
@@ -227,6 +225,15 @@ namespace AccountingProject.Controllers
             if (!result.Success) return Conflict(new { message = result.Message });
             return NoContent();
         }
+
+        private static object MapInstitutionSymbol(EmployerInstitutionSymbol s) => new
+        {
+            s.Id,
+            s.EmployerId,
+            s.InstitutionSymbol,
+            s.InstitutionSymbolName,
+            s.InstitutionType,
+        };
 
         private static object MapEmployer(Employer employer) => new
         {

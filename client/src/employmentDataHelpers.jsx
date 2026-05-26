@@ -154,6 +154,21 @@ export function currentHebrewAcademicYear() {
   return formatHebrewYear(hebrewYear);
 }
 
+/** שנות לימודים לבחירה בדוחות/השוואות: yearsBack אחורה, yearsForward קדימה מהשנה הנוכחית. */
+export function generateAcademicYearOptions(yearsBack = 7, yearsForward = 7) {
+  const now = new Date();
+  const gregorianYear = now.getFullYear();
+  const current = now.getMonth() >= 8 ? gregorianYear + 3761 : gregorianYear + 3760;
+  const options = [];
+  for (let y = current + yearsForward; y >= current - yearsBack; y--) {
+    options.push(formatHebrewYear(y));
+  }
+  return options;
+}
+
+/** טווח 7+1+7 — משמש ב־EmployerActions (הנפקת דוחות והשוואה). */
+export const REPORT_ACADEMIC_YEAR_OPTIONS = generateAcademicYearOptions(7, 7);
+
 /** מפתחות שדות דירוג לפי רמת דרגה (1 / 2) */
 export function bandFieldKeys(band) {
   const p = band === 1 ? 'grade1' : 'grade2';

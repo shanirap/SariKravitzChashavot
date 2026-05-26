@@ -1,20 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { employersApi, reportsApi } from '../api';
-import { formatDateDDMMYYYY, formatDateDDMMYYYYForFilename } from '../utils/dateFormat';
-import { formatHebrewYear } from '../employmentDataHelpers';
+import { parseApiErrorMessage } from '../utils/apiErrorMessage';
+import { formatDateDDMMYYYYForFilename } from '../utils/dateFormat';
+import { REPORT_ACADEMIC_YEAR_OPTIONS } from '../employmentDataHelpers';
+import AnnualComparisonSavedPanel from '../components/reports/AnnualComparisonSavedPanel';
 
-// Generate Hebrew academic year options (current −3 … current +2)
-function generateAcademicYears() {
-  const now = new Date();
-  const cur = now.getMonth() >= 8
-    ? now.getFullYear() + 3761
-    : now.getFullYear() + 3760;
-  const years = [];
-  for (let y = cur + 2; y >= cur - 3; y--) years.push(formatHebrewYear(y));
-  return years;
-}
-const ACADEMIC_YEAR_OPTIONS = generateAcademicYears();
+const ACADEMIC_YEAR_OPTIONS = REPORT_ACADEMIC_YEAR_OPTIONS;
 
 const MONTHS = [
   { value: 9,  label: 'ספטמבר' },
@@ -38,12 +30,7 @@ const EMPLOYER_REPORT_OPTIONS = [
     description:
       'גיליונות: מעסיק, עובדים (כולל ילדים וסטטוס), סמלי מוסד, נתוני העסקה ומקטעים — לפי מעסיק זה בלבד',
   },
-  {
-    id: 'employees-csv',
-    label: 'רשימת עובדי המעסיק (קובץ CSV)',
-    description: 'ייצוא קליל: שם, ת.ז., מספר עובד בעוקץ, תאריך לידה, מין וסטטוס פעילות',
-  },
-  // ── 7 new reports ──────────────────────────────────────────────────────
+  // ── דוחות Excel בשרת ─────────────────────────────────────────────────
   {
     id: 'kindergarten-annual',
     label: 'מצבת גנים שנתי',
@@ -55,13 +42,6 @@ const EMPLOYER_REPORT_OPTIONS = [
     label: 'מצבת בית ספר שנתי',
     description: 'ייצוא נתוני עסקה של עובדי בית ספר (מורות, מנהלים) לשנת לימודים שנבחרה.',
     needsYear: true,
-  },
-  {
-    id: 'institution-hours',
-    label: 'בדיקת שעות לסמל',
-    description: 'סיכום שעות גננת וסייעת לסמל מוסד מסוים לשנת לימודים שנבחרה.',
-    needsYear: true,
-    needsSymbol: true,
   },
   {
     id: 'employees-personal',
@@ -76,11 +56,16 @@ const EMPLOYER_REPORT_OPTIONS = [
   },
 ];
 
-function escapeCsvCell(v) {
-  const s = v == null ? '' : String(v);
-  if (/[",\r\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-  return s;
-}
+const COMPARE_SUBTYPES = [
+  { key: 'monthly', label: 'דוח השוואה לפי חודש מסוים', icon: 'bi-calendar-month' },
+  { key: 'annual', label: 'דוח השוואה שנתי מקובץ חד-פעמי', icon: 'bi-calendar-range' },
+  {
+    key: 'institution-hours',
+    label: 'בדיקת שעות לסמל',
+    icon: 'bi-clock-history',
+    description: 'בדיקת שעות לפי סמל מוסד ושנת לימודים',
+  },
+];
 
 function downloadBlob(filename, blob) {
   const url = URL.createObjectURL(blob);
@@ -106,16 +91,16 @@ export default function EmployerActions() {
   const [alert, setAlert] = useState(null);
   const [reportType, setReportType] = useState('');
   const [reportGenerating, setReportGenerating] = useState(false);
-  const [compareBusy, setCompareBusy] = useState(false);
   const [reportYear, setReportYear] = useState(ACADEMIC_YEAR_OPTIONS[0] ?? '');
   const [reportMonth, setReportMonth] = useState(9);
-  const [reportSymbol, setReportSymbol] = useState('');
   const [institutionSymbols, setInstitutionSymbols] = useState([]);
-  // comparison sub-type: 'payroll' (existing) | 'monthly' | 'annual'
-  const [compareSubType, setCompareSubType] = useState('payroll');
+  // comparison sub-type: monthly | annual | institution-hours (legacy payroll API kept on server)
+  const [compareSubType, setCompareSubType] = useState('monthly');
   const [compareYear, setCompareYear] = useState(ACADEMIC_YEAR_OPTIONS[0] ?? '');
   const [compareMonth, setCompareMonth] = useState(9);
+  const [compareSymbol, setCompareSymbol] = useState('');
   const [compareFileBusy, setCompareFileBusy] = useState(false);
+  const [institutionHoursBusy, setInstitutionHoursBusy] = useState(false);
 
   const showAlert = useCallback((type, msg) => {
     setAlert({ type, msg });
@@ -146,66 +131,13 @@ export default function EmployerActions() {
       .catch(() => {});
   }, [id]);
 
-  const handleComparePayrollSubmit = async (e) => {
-    e.preventDefault();
-    const form = e.currentTarget;
-    const input = form.elements.namedItem('payrollCompareFile');
-    const file = input && 'files' in input ? input.files?.[0] : null;
-    if (!file) {
-      showAlert('warning', 'בחרו קובץ Excel (.xlsx).');
-      return;
-    }
-    setCompareBusy(true);
-    try {
-      const res = await employersApi.compareMonthlyPayroll(id, file);
-      const blob = new Blob([res.data], {
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      });
-      const cd = res.headers['content-disposition'] ?? res.headers['Content-Disposition'];
-      let filename = `השוואת_שכר_${sanitizeFilenamePart(employer?.name) || id}_${new Date().toISOString().slice(0, 10)}.xlsx`;
-      if (cd && typeof cd === 'string') {
-        const star = /filename\*=UTF-8''([^;\s]+)/i.exec(cd);
-        const quoted = /filename="([^"]+)"/i.exec(cd);
-        const raw = star?.[1] ?? quoted?.[1];
-        if (raw) {
-          try {
-            filename = decodeURIComponent(raw.replace(/\+/g, '%20'));
-          } catch {
-            filename = raw;
-          }
-        }
-      }
-      downloadBlob(filename, blob);
-      showAlert('success', 'דוח ההשוואה הורד.');
-      form.reset();
-    } catch (err) {
-      let msg = 'שגיאה בהעלאה או ביצירת דוח ההשוואה.';
-      const res = err.response;
-      if (!res) {
-        msg =
-          'לא ניתן להתחבר לשרת. ודאו שה־API רץ (למשל https://localhost:7068), שהדפדפן מאשר תעודת SSL מקומית, ושניסיתם שוב לאחר הפעלה מחדש של השרת.';
-      } else {
-        const d = res.data;
-        if (d instanceof Blob) {
-          try {
-            const t = await d.text();
-            const j = JSON.parse(t);
-            if (typeof j.message === 'string') msg = j.message;
-            else if (typeof j.detail === 'string') msg = j.detail;
-            else if (typeof j.title === 'string') msg = j.title;
-          } catch {
-            /* ignore — non-JSON error body */
-          }
-        } else if (typeof d?.message === 'string') msg = d.message;
-      }
-      showAlert('danger', msg);
-    } finally {
-      setCompareBusy(false);
-    }
-  };
-
   const handleComparisonReportSubmit = async (e) => {
     e.preventDefault();
+    const year = compareYear?.trim();
+    if (!year) {
+      showAlert('warning', 'יש לבחור שנת לימודים.');
+      return;
+    }
     const form = e.currentTarget;
     const input = form.elements.namedItem('comparisonFile');
     const file = input && 'files' in input ? input.files?.[0] : null;
@@ -218,12 +150,12 @@ export default function EmployerActions() {
       let res;
       let filename;
       if (compareSubType === 'monthly') {
-        res = await reportsApi.monthlyComparison(id, compareYear, compareMonth, file);
+        res = await reportsApi.monthlyComparison(id, year, compareMonth, file);
         const monthLabel = MONTHS.find(m => m.value === compareMonth)?.label ?? compareMonth;
-        filename = `דוח_השוואה_חודשי_${sanitizeFilenamePart(employer?.name)}_${compareYear}_${monthLabel}.xlsx`;
+        filename = `דוח_השוואה_חודשי_${sanitizeFilenamePart(employer?.name)}_${year}_${monthLabel}.xlsx`;
       } else {
-        res = await reportsApi.annualComparison(id, compareYear, file);
-        filename = `דוח_השוואה_שנתי_${sanitizeFilenamePart(employer?.name)}_${compareYear}.xlsx`;
+        res = await reportsApi.annualComparison(id, year, file);
+        filename = `דוח_השוואה_שנתי_${sanitizeFilenamePart(employer?.name)}_${year}.xlsx`;
       }
       const blob = new Blob([res.data], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -241,24 +173,41 @@ export default function EmployerActions() {
       showAlert('success', 'דוח ההשוואה הורד.');
       form.reset();
     } catch (err) {
-      let msg = 'שגיאה בהעלאה או ביצירת דוח ההשוואה.';
-      const res = err.response;
-      if (!res) {
-        msg = 'לא ניתן להתחבר לשרת. ודאו שה־API רץ ושהדפדפן מאשר תעודת SSL מקומית.';
-      } else {
-        const d = res.data;
-        if (d instanceof Blob) {
-          try {
-            const t = await d.text();
-            const j = JSON.parse(t);
-            if (typeof j.message === 'string') msg = j.message;
-            else if (typeof j.detail === 'string') msg = j.detail;
-          } catch { /* non-JSON */ }
-        } else if (typeof d?.message === 'string') msg = d.message;
-      }
+      const msg = await parseApiErrorMessage(err, 'שגיאה בהעלאה או ביצירת דוח ההשוואה.');
       showAlert('danger', msg);
     } finally {
       setCompareFileBusy(false);
+    }
+  };
+
+  const handleInstitutionHoursSubmit = async (e) => {
+    e.preventDefault();
+    const year = compareYear?.trim();
+    const symbol = compareSymbol?.trim();
+    if (!year) {
+      showAlert('warning', 'יש לבחור שנת לימודים.');
+      return;
+    }
+    if (!symbol) {
+      showAlert('warning', 'יש לבחור סמל מוסד.');
+      return;
+    }
+    setInstitutionHoursBusy(true);
+    try {
+      const res = await reportsApi.institutionHours(id, year, symbol);
+      const blob = new Blob([res.data], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const suffix = formatDateDDMMYYYYForFilename(new Date());
+      const safeName = sanitizeFilenamePart(employer?.name) || `מעסיק_${id}`;
+      const filename = `שעות_סמל_${sanitizeFilenamePart(symbol)}_${safeName}_${suffix}.xlsx`;
+      downloadBlob(filename, blob);
+      showAlert('success', 'הורד דוח "בדיקת שעות לסמל".');
+    } catch (err) {
+      const msg = await parseApiErrorMessage(err, 'שגיאה בהפקת הדוח.');
+      showAlert('danger', msg);
+    } finally {
+      setInstitutionHoursBusy(false);
     }
   };
 
@@ -303,40 +252,7 @@ export default function EmployerActions() {
       return;
     }
 
-    if (reportType === 'employees-csv') {
-      setReportGenerating(true);
-      try {
-        const res = await employersApi.getEmployees(id, { page: 1, pageSize: 10000, search: undefined });
-        const rows = res.data.items ?? [];
-        const header = ['שם מלא', 'ת.ז.', 'מספר עובד בעוקץ', 'תאריך לידה', 'מין', 'סטטוס פעילות'];
-        const lines = [
-          header.map(escapeCsvCell).join(','),
-          ...rows.map((emp) => {
-            const birth =
-              emp.birthDate != null && emp.birthDate !== ''
-                ? formatDateDDMMYYYY(emp.birthDate)
-                : '';
-            const status = emp.isActive ? 'פעיל' : 'לא פעיל';
-            return [emp.fullName ?? '', emp.idNumber ?? '', emp.employeeNumber ?? '', birth, emp.gender ?? '', status]
-              .map(escapeCsvCell)
-              .join(',');
-          }),
-        ];
-        const csv = '\uFEFF' + lines.join('\r\n');
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-        const suffix = formatDateDDMMYYYYForFilename(new Date());
-        const safeName = sanitizeFilenamePart(employer?.name) || `מעסיק_${id}`;
-        downloadBlob(`דוח_עובדים_${safeName}_${suffix}.csv`, blob);
-        showAlert('success', `הורד דוח "${label}".`);
-      } catch {
-        showAlert('danger', 'שגיאה ביצירת קובץ הדוח.');
-      } finally {
-        setReportGenerating(false);
-      }
-      return;
-    }
-
-    // ── 7 new server-generated Excel reports ──────────────────────────
+    // ── דוחות Excel בשרת ──────────────────────────────────────────────
     const selectedOpt = EMPLOYER_REPORT_OPTIONS.find(o => o.id === reportType);
     if (!selectedOpt) return;
 
@@ -348,11 +264,6 @@ export default function EmployerActions() {
       showAlert('warning', 'יש לבחור חודש.');
       return;
     }
-    if (selectedOpt.needsSymbol && !reportSymbol) {
-      showAlert('warning', 'יש לבחור סמל מוסד.');
-      return;
-    }
-
     const suffix = formatDateDDMMYYYYForFilename(new Date());
     const safeName = sanitizeFilenamePart(employer?.name) || `מעסיק_${id}`;
 
@@ -364,18 +275,6 @@ export default function EmployerActions() {
       'school-annual': () => ({
         fetch: reportsApi.schoolAnnual(id, reportYear),
         filename: `מצבת_בית_ספר_${safeName}_${sanitizeFilenamePart(reportYear)}_${suffix}.xlsx`,
-      }),
-      'monthly-comparison': () => ({
-        fetch: reportsApi.monthlyComparison(id, reportYear, reportMonth),
-        filename: `השוואה_חודשית_${reportMonth}_${safeName}_${sanitizeFilenamePart(reportYear)}_${suffix}.xlsx`,
-      }),
-      'annual-comparison': () => ({
-        fetch: reportsApi.annualComparison(id, reportYear),
-        filename: `השוואה_שנתית_${safeName}_${sanitizeFilenamePart(reportYear)}_${suffix}.xlsx`,
-      }),
-      'institution-hours': () => ({
-        fetch: reportsApi.institutionHours(id, reportYear, reportSymbol),
-        filename: `שעות_סמל_${sanitizeFilenamePart(reportSymbol)}_${safeName}_${suffix}.xlsx`,
       }),
       'employees-personal': () => ({
         fetch: reportsApi.employeesPersonal(id),
@@ -399,13 +298,7 @@ export default function EmployerActions() {
         downloadBlob(filename, blob);
         showAlert('success', `הורד דוח "${label}".`);
       } catch (err) {
-        let msg = 'שגיאה בהפקת הדוח.';
-        const d = err.response?.data;
-        if (d instanceof Blob) {
-          try { const t = await d.text(); msg = JSON.parse(t)?.message ?? msg; } catch { /* ignore */ }
-        } else if (typeof d?.message === 'string') {
-          msg = d.message;
-        }
+        const msg = await parseApiErrorMessage(err, 'שגיאה בהפקת הדוח.');
         showAlert('danger', msg);
       } finally {
         setReportGenerating(false);
@@ -413,10 +306,7 @@ export default function EmployerActions() {
       return;
     }
 
-    showAlert(
-      'info',
-      `דוח "${label}" זמין בגרסאות הבאות של המערכת. ניתן בינתיים להוריד את רשימת העובדים בפורמט CSV.`
-    );
+    showAlert('warning', `סוג הדוח "${label}" אינו נתמך.`);
   };
 
   if (loading) {
@@ -594,26 +484,6 @@ export default function EmployerActions() {
                     </div>
                   )}
 
-                  {selectedOpt?.needsSymbol && (
-                    <div className="col-sm-6 col-md-4">
-                      <label className="form-label fw-semibold">סמל מוסד</label>
-                      <select
-                        className="form-select"
-                        value={reportSymbol}
-                        onChange={e => setReportSymbol(e.target.value)}
-                      >
-                        <option value="">— בחר סמל —</option>
-                        {institutionSymbols.map(s => (
-                          <option key={s.id ?? s.institutionSymbol} value={s.institutionSymbol}>
-                            {s.institutionSymbolName
-                              ? `${s.institutionSymbol} — ${s.institutionSymbolName}`
-                              : s.institutionSymbol}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
                   <div className="col-12 d-grid d-lg-block">
                     <button type="submit" className="btn btn-primary px-4" disabled={reportGenerating || !reportType}>
                       {reportGenerating ? (
@@ -636,6 +506,7 @@ export default function EmployerActions() {
       )}
 
       {panel === 'compare' && (
+        <>
         <div className="card border shadow-sm">
           <div className="card-header d-flex align-items-center gap-2 bg-body-tertiary">
             <i className="bi bi-arrow-left-right text-primary"></i>
@@ -646,11 +517,7 @@ export default function EmployerActions() {
             <div className="mb-4">
               <label className="form-label fw-semibold">סוג השוואה</label>
               <div className="d-flex flex-wrap gap-2">
-                {[
-                  { key: 'payroll', label: 'השוואת שכר חודשי', icon: 'bi-file-earmark-diff' },
-                  { key: 'monthly', label: 'דוח השוואה לפי חודש מסוים', icon: 'bi-calendar-month' },
-                  { key: 'annual',  label: 'דוח השוואה שנתי', icon: 'bi-calendar-range' },
-                ].map(({ key, label, icon }) => (
+                {COMPARE_SUBTYPES.map(({ key, label, icon }) => (
                   <button
                     key={key}
                     type="button"
@@ -663,44 +530,7 @@ export default function EmployerActions() {
               </div>
             </div>
 
-            {/* ── Existing: monthly payroll comparison ── */}
-            {compareSubType === 'payroll' && (
-              <>
-                <p className="text-muted small mb-3">
-                  העלו קובץ Excel עם עמודות לפחות: <strong>תז</strong> או <strong>מספר עובד בעוקץ</strong>, וזיהוי חודש (
-                  <strong>חודש</strong> + <strong>שנה</strong> גרגוריאניים, או עמודת <strong>תאריך</strong>). כל השורות חייבות
-                  להשתייך לאותה שנת לימודים עברית (ספטמבר–אוגוסט). הפלט: <strong>V</strong> כשהנתונים תואמים, תא ריק עם רקע
-                  צהוב כשיש אי־התאמה, ועמודת הערות עם פירוט.
-                </p>
-                <form className="row g-3 align-items-end" onSubmit={handleComparePayrollSubmit}>
-                  <div className="col-lg-8">
-                    <label htmlFor="payrollCompareFile" className="form-label fw-semibold">
-                      קובץ Excel להשוואה
-                    </label>
-                    <input
-                      id="payrollCompareFile"
-                      name="payrollCompareFile"
-                      type="file"
-                      accept=".xlsx"
-                      className="form-control"
-                      disabled={compareBusy}
-                      required
-                    />
-                  </div>
-                  <div className="col-lg-4 d-grid d-lg-block">
-                    <button type="submit" className="btn btn-success px-4" disabled={compareBusy}>
-                      {compareBusy ? (
-                        <><span className="spinner-border spinner-border-sm me-2" role="status"></span>מעבד…</>
-                      ) : (
-                        <><i className="bi bi-upload me-2"></i>העלה והורד דוח השוואה</>
-                      )}
-                    </button>
-                  </div>
-                </form>
-              </>
-            )}
-
-            {/* ── New: monthly comparison report (with file upload) ── */}
+            {/* ── Monthly Okets comparison report (with file upload) ── */}
             {compareSubType === 'monthly' && (
               <>
                 <p className="text-muted small mb-3">
@@ -740,6 +570,64 @@ export default function EmployerActions() {
                         <><span className="spinner-border spinner-border-sm me-2" role="status"></span>מעבד…</>
                       ) : (
                         <><i className="bi bi-upload me-2"></i>העלה והורד דוח השוואה חודשי</>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </>
+            )}
+
+            {/* ── Institution hours check (no file upload) ── */}
+            {compareSubType === 'institution-hours' && (
+              <>
+                <p className="text-muted small mb-3">
+                  {COMPARE_SUBTYPES.find((o) => o.key === 'institution-hours')?.description ??
+                    'בדיקת שעות לפי סמל מוסד ושנת לימודים'}
+                  . בחרו שנת לימודים וסמל מוסד, ולחצו להורדת דוח Excel.
+                </p>
+                <form className="row g-3 align-items-end" onSubmit={handleInstitutionHoursSubmit}>
+                  <div className="col-sm-6 col-md-4">
+                    <label className="form-label fw-semibold">שנת לימודים</label>
+                    <select
+                      className="form-select"
+                      value={compareYear}
+                      onChange={(e) => setCompareYear(e.target.value)}
+                    >
+                      {ACADEMIC_YEAR_OPTIONS.map((y) => (
+                        <option key={y} value={y}>
+                          {y}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="col-sm-6 col-md-4">
+                    <label className="form-label fw-semibold">סמל מוסד</label>
+                    <select
+                      className="form-select"
+                      value={compareSymbol}
+                      onChange={(e) => setCompareSymbol(e.target.value)}
+                    >
+                      <option value="">— בחר סמל —</option>
+                      {institutionSymbols.map((s) => (
+                        <option key={s.id ?? s.institutionSymbol} value={s.institutionSymbol}>
+                          {s.institutionSymbolName
+                            ? `${s.institutionSymbol} — ${s.institutionSymbolName}`
+                            : s.institutionSymbol}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="col-12 d-grid d-lg-block">
+                    <button type="submit" className="btn btn-primary px-4" disabled={institutionHoursBusy}>
+                      {institutionHoursBusy ? (
+                        <>
+                          <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                          מכין…
+                        </>
+                      ) : (
+                        <>
+                          <i className="bi bi-download me-2"></i>הורד דוח בדיקת שעות לסמל
+                        </>
                       )}
                     </button>
                   </div>
@@ -788,6 +676,11 @@ export default function EmployerActions() {
             )}
           </div>
         </div>
+
+        <div className="mt-4">
+          <AnnualComparisonSavedPanel employerId={Number(id)} />
+        </div>
+        </>
       )}
     </div>
   );

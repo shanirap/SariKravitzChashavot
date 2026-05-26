@@ -15,6 +15,7 @@ namespace AccountingProject.Services
         Task<HashSet<int>> GetEmployeeIdsWithEmploymentDataAsync(int employerId, IReadOnlyList<int> employeeIds);
         Task<IReadOnlyList<EmployerInstitutionSymbol>> GetInstitutionSymbolsAsync(int employerId);
         Task<(EmployerInstitutionSymbol? Symbol, string? Message)> CreateInstitutionSymbolAsync(int employerId, EmployerInstitutionSymbolDto dto);
+        Task<(EmployerInstitutionSymbol? Symbol, string? Message)> UpdateInstitutionSymbolAsync(int employerId, int symbolId, EmployerInstitutionSymbolUpdateDto dto);
         Task<(bool Success, string? Message)> DeleteInstitutionSymbolAsync(int employerId, int symbolId);
 
         /// <summary>קובץ Excel עם כל נתוני המעסיק (מעסיק, עובדים, סמלי מוסד, נתוני העסקה ומקטעים).</summary>

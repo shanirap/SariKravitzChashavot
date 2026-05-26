@@ -87,6 +87,7 @@ builder.Services.AddScoped<IEmploymentDataService, EmploymentDataService>();
 builder.Services.AddScoped<IBulkImportService, BulkImportService>();
 builder.Services.AddScoped<IComparisonReportService, ComparisonReportService>();
 builder.Services.AddScoped<IReportExportService, ReportExportService>();
+builder.Services.AddScoped<IPayrollMonthlyInputService, PayrollMonthlyInputService>();
 
 var app = builder.Build();
 

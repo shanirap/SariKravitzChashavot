@@ -39,6 +39,8 @@ namespace AccountingProject.Data
         public DbSet<EmployerInstitutionSymbol> EmployerInstitutionSymbols { get; set; }
         public DbSet<AuditLog> AuditLogs { get; set; }
         public DbSet<User> Users { get; set; }
+        public DbSet<PayrollMonthlyInputBatch> PayrollMonthlyInputBatches { get; set; }
+        public DbSet<PayrollMonthlyInputRow> PayrollMonthlyInputRows { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -75,6 +77,11 @@ namespace AccountingProject.Data
 
             modelBuilder.Entity<EmployerInstitutionSymbol>()
                 .HasQueryFilter(s => !s.Employer!.IsDeleted);
+
+            modelBuilder.Entity<EmployerInstitutionSymbol>()
+                .Property(s => s.InstitutionType)
+                .HasMaxLength(20)
+                .HasDefaultValue("אחר");
 
             modelBuilder.Entity<EmploymentDataSlot>()
                 .HasOne(s => s.EmploymentData)
@@ -128,6 +135,55 @@ namespace AccountingProject.Data
             modelBuilder.Entity<EmploymentData>().Property(e => e.Grade2DoubleDegree).HasPrecision(18, 2);
             modelBuilder.Entity<EmploymentDataSlot>().Property(s => s.WeeklyHours).HasPrecision(18, 2);
             modelBuilder.Entity<EmploymentDataSlot>().Property(s => s.JobBase).HasPrecision(18, 2);
+
+            var payrollMonthlyInputBatch = modelBuilder.Entity<PayrollMonthlyInputBatch>();
+            payrollMonthlyInputBatch.HasKey(b => b.Id);
+            payrollMonthlyInputBatch.Property(b => b.EmployerId).IsRequired();
+            payrollMonthlyInputBatch.Property(b => b.AcademicYear).IsRequired();
+            payrollMonthlyInputBatch.Property(b => b.Month).IsRequired();
+            payrollMonthlyInputBatch.Property(b => b.GregorianYear).IsRequired();
+            payrollMonthlyInputBatch.Property(b => b.OriginalFileName).IsRequired();
+
+            payrollMonthlyInputBatch
+                .HasOne(b => b.Employer)
+                .WithMany()
+                .HasForeignKey(b => b.EmployerId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            payrollMonthlyInputBatch
+                .HasMany(b => b.Rows)
+                .WithOne(r => r.Batch)
+                .HasForeignKey(r => r.BatchId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            payrollMonthlyInputBatch
+                .HasIndex(b => new { b.EmployerId, b.AcademicYear, b.Month, b.GregorianYear })
+                .IsUnique()
+                .HasFilter("[פעיל] = 1 AND [נמחק] = 0");
+
+            var payrollMonthlyInputRow = modelBuilder.Entity<PayrollMonthlyInputRow>();
+            payrollMonthlyInputRow.HasKey(r => r.Id);
+            payrollMonthlyInputRow.Property(r => r.BatchId).IsRequired();
+            payrollMonthlyInputRow.Property(r => r.EmployerId).IsRequired();
+            payrollMonthlyInputRow.Property(r => r.AcademicYear).IsRequired();
+            payrollMonthlyInputRow.Property(r => r.Month).IsRequired();
+            payrollMonthlyInputRow.Property(r => r.GregorianYear).IsRequired();
+
+            payrollMonthlyInputRow.HasIndex(r => r.BatchId);
+            payrollMonthlyInputRow.HasIndex(r => new { r.EmployerId, r.AcademicYear, r.Month, r.GregorianYear });
+            payrollMonthlyInputRow.HasIndex(r => r.IdNumber);
+            payrollMonthlyInputRow.HasIndex(r => r.OketzEmployeeNumber);
+            payrollMonthlyInputRow.HasIndex(r => r.InstitutionSymbol);
+
+            payrollMonthlyInputRow.Property(r => r.Seniority).HasPrecision(18, 2);
+            payrollMonthlyInputRow.Property(r => r.WeeklyHours).HasPrecision(18, 2);
+            payrollMonthlyInputRow.Property(r => r.JobBase).HasPrecision(18, 2);
+            payrollMonthlyInputRow.Property(r => r.JobPercent).HasPrecision(18, 2);
+            payrollMonthlyInputRow.Property(r => r.AgeHours).HasPrecision(18, 2);
+            payrollMonthlyInputRow.Property(r => r.TrainingBenefits).HasPrecision(18, 2);
+            payrollMonthlyInputRow.Property(r => r.DoubleDegree).HasPrecision(18, 2);
+            payrollMonthlyInputRow.Property(r => r.TrainingFund).HasPrecision(18, 2);
+            payrollMonthlyInputRow.Property(r => r.GeneralMultiplier).HasPrecision(18, 2);
         }
 
         public override int SaveChanges()

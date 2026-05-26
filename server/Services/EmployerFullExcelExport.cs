@@ -93,12 +93,14 @@ namespace AccountingProject.Services
             ws.Cell(1, 1).Value = "מזהה";
             ws.Cell(1, 2).Value = "סמל מוסד";
             ws.Cell(1, 3).Value = "שם מוסד";
+            ws.Cell(1, 4).Value = "סוג מוסד";
             var r = 2;
             foreach (var s in symbols)
             {
                 ws.Cell(r, 1).Value = s.Id;
                 ws.Cell(r, 2).Value = s.InstitutionSymbol;
                 ws.Cell(r, 3).Value = s.InstitutionSymbolName ?? "";
+                ws.Cell(r, 4).Value = s.InstitutionType;
                 r++;
             }
             ws.Row(1).Style.Font.Bold = true;

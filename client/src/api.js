@@ -35,6 +35,12 @@ function isAuthLoginRequest(config) {
 }
 
 api.interceptors.request.use((config) => {
+  if (config.data instanceof FormData) {
+    config.headers = config.headers ?? {};
+    // Let the browser set multipart boundary (required for file uploads).
+    delete config.headers['Content-Type'];
+    delete config.headers['content-type'];
+  }
   if (!isAuthLoginRequest(config)) {
     const token = getToken();
     if (token) {
@@ -112,6 +118,8 @@ export const employersApi = {
   getInstitutionSymbols: (id) => api.get(`/employers/${id}/institution-symbols`),
   createInstitutionSymbol: (id, data) =>
     api.post(`/employers/${id}/institution-symbols`, data),
+  updateInstitutionSymbol: (id, symbolId, data) =>
+    api.put(`/employers/${id}/institution-symbols/${symbolId}`, data),
   deleteInstitutionSymbol: (id, symbolId) =>
     api.delete(`/employers/${id}/institution-symbols/${symbolId}`),
   create: (data) => api.post('/employers', data),
@@ -190,6 +198,33 @@ export const reportsApi = {
       params: { employerId, academicYear },
       responseType: 'blob',
     }),
+  annualComparisonSaved: (employerId, academicYear) =>
+    api.get('/reports/annual-comparison-saved', {
+      params: { employerId, academicYear },
+      responseType: 'blob',
+    }),
+};
+
+export const payrollMonthlyInputsApi = {
+  getYearStatus: (employerId, academicYear) =>
+    api.get('/payroll-monthly-inputs/status', {
+      params: { employerId, academicYear },
+    }),
+  importMonth: (employerId, academicYear, month, file) => {
+    const form = new FormData();
+    form.append('file', file);
+    return api.post('/payroll-monthly-inputs/import', form, {
+      params: { employerId, academicYear, month },
+    });
+  },
+  getRows: (employerId, academicYear, month) =>
+    api.get('/payroll-monthly-inputs/rows', {
+      params: { employerId, academicYear, month },
+    }),
+  updateRow: (rowId, payload) =>
+    api.put(`/payroll-monthly-inputs/rows/${rowId}`, payload),
+  deleteRow: (rowId) =>
+    api.delete(`/payroll-monthly-inputs/rows/${rowId}`),
 };
 
 export const employmentDataApi = {

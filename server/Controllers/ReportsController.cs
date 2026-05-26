@@ -1,3 +1,4 @@
+using AccountingProject.Infrastructure;
 using AccountingProject.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -63,6 +64,7 @@ namespace AccountingProject.Controllers
         // POST /api/reports/monthly-comparison?employerId=&academicYear=&month=
         // Body: multipart/form-data with "file" (.xlsx) containing monthly עוקץ data for comparison.
         [HttpPost("monthly-comparison")]
+        [RequestSizeLimit(ExcelUploadRules.ComparisonMonthlyPayrollMaxBytes)]
         public async Task<IActionResult> MonthlyComparison(
             [FromQuery] int employerId,
             [FromQuery] string academicYear,
@@ -79,6 +81,11 @@ namespace AccountingProject.Controllers
                 var bytes = await _reports.MonthlyComparisonAsync(employerId, academicYear.Trim(), month, stream);
                 return File(bytes, XlsxMime, $"השוואה_חודשית_{month}_{employerId}_{DateTime.UtcNow:yyyyMMdd}.xlsx");
             }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogWarning(ex, "MonthlyComparison rejected for employer {EmployerId} month {Month}.", employerId, month);
+                return BadRequest(new { message = ex.Message });
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "MonthlyComparison report failed for employer {EmployerId} month {Month}.", employerId, month);
@@ -89,6 +96,7 @@ namespace AccountingProject.Controllers
         // POST /api/reports/annual-comparison?employerId=&academicYear=
         // Body: multipart/form-data with "file" (.xlsx) containing annual עוקץ data for comparison.
         [HttpPost("annual-comparison")]
+        [RequestSizeLimit(ExcelUploadRules.ComparisonMonthlyPayrollMaxBytes)]
         public async Task<IActionResult> AnnualComparison(
             [FromQuery] int employerId,
             [FromQuery] string academicYear,
@@ -104,9 +112,39 @@ namespace AccountingProject.Controllers
                 var bytes = await _reports.AnnualComparisonAsync(employerId, academicYear.Trim(), stream);
                 return File(bytes, XlsxMime, $"השוואה_שנתית_{employerId}_{DateTime.UtcNow:yyyyMMdd}.xlsx");
             }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogWarning(ex, "AnnualComparison rejected for employer {EmployerId}.", employerId);
+                return BadRequest(new { message = ex.Message });
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "AnnualComparison report failed for employer {EmployerId}.", employerId);
+                return StatusCode(500, new { message = "שגיאה בהפקת הדוח." });
+            }
+        }
+
+        // GET /api/reports/annual-comparison-saved?employerId=&academicYear=
+        [HttpGet("annual-comparison-saved")]
+        public async Task<IActionResult> AnnualComparisonFromSavedData(
+            [FromQuery] int employerId,
+            [FromQuery] string academicYear)
+        {
+            if (employerId <= 0 || string.IsNullOrWhiteSpace(academicYear))
+                return BadRequest(new { message = "employerId ו-academicYear נדרשים." });
+            try
+            {
+                var bytes = await _reports.AnnualComparisonFromSavedDataAsync(employerId, academicYear.Trim());
+                return File(bytes, XlsxMime, $"השוואה_שנתית_שמור_{employerId}_{DateTime.UtcNow:yyyyMMdd}.xlsx");
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogWarning(ex, "AnnualComparisonFromSavedData rejected for employer {EmployerId}.", employerId);
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "AnnualComparisonFromSavedData report failed for employer {EmployerId}.", employerId);
                 return StatusCode(500, new { message = "שגיאה בהפקת הדוח." });
             }
         }

@@ -1,5 +1,6 @@
 using AccountingProject.Contracts;
 using AccountingProject.Data;
+using AccountingProject.Domain;
 using AccountingProject.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -211,14 +212,42 @@ namespace AccountingProject.Services
             if (exists)
                 return (null, "סמל מוסד זה כבר קיים למעסיק.");
 
+            var (institutionType, typeError) = InstitutionTypes.Resolve(dto.InstitutionType);
+            if (typeError != null)
+                return (null, typeError);
+
             var symbol = new EmployerInstitutionSymbol
             {
                 EmployerId = employerId,
                 InstitutionSymbol = institutionSymbol,
-                InstitutionSymbolName = Normalize(dto.InstitutionSymbolName)
+                InstitutionSymbolName = Normalize(dto.InstitutionSymbolName),
+                InstitutionType = institutionType,
             };
 
             _db.EmployerInstitutionSymbols.Add(symbol);
+            await _db.SaveChangesAsync();
+            return (symbol, null);
+        }
+
+        public async Task<(EmployerInstitutionSymbol? Symbol, string? Message)> UpdateInstitutionSymbolAsync(
+            int employerId, int symbolId, EmployerInstitutionSymbolUpdateDto dto)
+        {
+            var symbol = await _db.EmployerInstitutionSymbols.FirstOrDefaultAsync(s =>
+                s.Id == symbolId && s.EmployerId == employerId);
+            if (symbol == null)
+                return (null, null);
+
+            if (dto.InstitutionSymbolName != null)
+                symbol.InstitutionSymbolName = Normalize(dto.InstitutionSymbolName);
+
+            if (dto.InstitutionType != null)
+            {
+                var (institutionType, typeError) = InstitutionTypes.Resolve(dto.InstitutionType);
+                if (typeError != null)
+                    return (null, typeError);
+                symbol.InstitutionType = institutionType;
+            }
+
             await _db.SaveChangesAsync();
             return (symbol, null);
         }
