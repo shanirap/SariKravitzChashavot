@@ -209,6 +209,26 @@ public sealed class AnnualComparisonReportTests
     }
 
     [Fact]
+    public async Task AnnualComparison_SeniorityMismatch_ShowsSeniorityDetail()
+    {
+        await using var db = DbTestFactory.CreateContext();
+        var employer = await ReportTestData.SeedEmployerAsync(db);
+        var employee = await ReportTestData.SeedEmployeeAsync(db, employer.Id, "444333222");
+        var ed = await ReportTestData.SeedEmploymentWithSlotAsync(db, employer.Id, employee.Id, "SYM-1");
+        ed.Grade1Seniority = "10";
+        await db.SaveChangesAsync();
+
+        await using var upload = MonthlyComparisonUploadWorkbook.Create(
+            "444333222", null, "Test User", 9, 2025,
+            b => b.Band1(seniority: "2"));
+
+        var bytes = await new ReportExportService(db).AnnualComparisonAsync(employer.Id, Year, upload);
+        using var wb = new XLWorkbook(new MemoryStream(bytes));
+        var cell = wb.Worksheet(SheetName).Cell(2, 10).GetString();
+        Assert.Contains("ותק:", cell, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task AnnualComparison_NoInputRow_ShowsNotFound()
     {
         await using var db = DbTestFactory.CreateContext();

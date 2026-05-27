@@ -33,4 +33,16 @@ public sealed class AnnualComparisonSavedApiIntegrationTests
         Assert.True(ws.LastRowUsed()?.RowNumber() >= 2);
         Assert.Equal(AnnualComparisonReportBuilder.NotCapturedInInput, ws.Cell(2, 10).GetString());
     }
+
+    [Fact]
+    public async Task AnnualComparisonSaved_UnknownEmployer_Returns400()
+    {
+        await using var factory = new AccountingWebApplicationFactory();
+        var client = await IntegrationAuth.CreateAdminClientAsync(factory);
+
+        var resp = await client.GetAsync(
+            $"/api/reports/annual-comparison-saved?employerId=99999&academicYear={Uri.EscapeDataString(Year)}");
+
+        await IntegrationResponseAssert.AssertBadRequestMessageAsync(resp, "המעסיק לא נמצא");
+    }
 }

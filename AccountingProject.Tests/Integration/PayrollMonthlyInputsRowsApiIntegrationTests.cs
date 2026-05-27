@@ -4,6 +4,7 @@ using System.Text.Json;
 using AccountingProject.Contracts;
 using AccountingProject.Data;
 using AccountingProject.Models;
+using AccountingProject.Tests.TestHelpers;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace AccountingProject.Tests.Integration;
@@ -82,6 +83,19 @@ public sealed class PayrollMonthlyInputsRowsApiIntegrationTests
         var updated = await updateResp.Content.ReadFromJsonAsync<PayrollMonthlyInputRowDto>(Json);
 
         Assert.True(updated!.IsManualEdited);
+    }
+
+    [Fact]
+    public async Task Rows_Delete_UnknownRow_Returns404WithMessage()
+    {
+        await using var factory = new AccountingWebApplicationFactory();
+        var client = await IntegrationAuth.CreateAdminClientAsync(factory);
+
+        var resp = await client.DeleteAsync("/api/payroll-monthly-inputs/rows/424242");
+
+        Assert.Equal(HttpStatusCode.NotFound, resp.StatusCode);
+        var message = await IntegrationResponseAssert.ReadMessageAsync(resp);
+        Assert.Contains("שורת קלט עוקץ חודשי לא נמצאה", message, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -129,6 +129,39 @@ public sealed class ReportExportServiceErrorTests
     }
 
     [Fact]
+    public async Task AnnualComparisonFromSaved_NoEmploymentSlots_ThrowsSlotsMessage()
+    {
+        await using var db = DbTestFactory.CreateContext();
+        var employer = await ReportTestData.SeedEmployerAsync(db);
+        var employee = await ReportTestData.SeedEmployeeAsync(db, employer.Id, "555666777");
+        db.EmploymentData.Add(new EmploymentData
+        {
+            EmployeeId = employee.Id,
+            EmployerId = employer.Id,
+            AcademicYear = Year,
+            Grade1Role = "גננת",
+            Slots = [],
+        });
+        await db.SaveChangesAsync();
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            new ReportExportService(db).AnnualComparisonFromSavedDataAsync(employer.Id, Year));
+
+        Assert.Equal("לא נמצאו מקטעי העסקה להשוואה.", ex.Message);
+    }
+
+    [Fact]
+    public async Task AnnualComparisonFromSaved_UnknownEmployer_ThrowsNotFoundMessage()
+    {
+        await using var db = DbTestFactory.CreateContext();
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            new ReportExportService(db).AnnualComparisonFromSavedDataAsync(99999, Year));
+
+        Assert.Equal("המעסיק לא נמצא במערכת.", ex.Message);
+    }
+
+    [Fact]
     public async Task InstitutionHours_UnknownSymbol_ReturnsStandardAndZeroRoster()
     {
         await using var db = DbTestFactory.CreateContext();

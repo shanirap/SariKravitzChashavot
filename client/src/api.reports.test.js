@@ -91,4 +91,12 @@ describe('reportsApi', () => {
       responseType: 'blob',
     });
   });
+
+  it('annualComparisonSaved calls GET with blob response', async () => {
+    await reportsApi.annualComparisonSaved(8, 'תשפ"ו');
+    expect(mockGet).toHaveBeenCalledWith('/reports/annual-comparison-saved', {
+      params: { employerId: 8, academicYear: 'תשפ"ו' },
+      responseType: 'blob',
+    });
+  });
 });

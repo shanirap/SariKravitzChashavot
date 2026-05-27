@@ -57,6 +57,9 @@ public sealed class ReportsApiIntegrationTests
             mp2);
         Assert.Equal(HttpStatusCode.OK, annualResp.StatusCode);
         Assert.True((await annualResp.Content.ReadAsByteArrayAsync()).Length > 64);
+
+        await AssertXlsxGetAsync(client,
+            $"/api/reports/annual-comparison-saved?employerId={employerId}&academicYear={Uri.EscapeDataString(Year)}");
     }
 
     [Fact]

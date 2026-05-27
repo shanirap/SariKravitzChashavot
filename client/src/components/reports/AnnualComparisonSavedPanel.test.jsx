@@ -173,6 +173,88 @@ describe('AnnualComparisonSavedPanel', () => {
     });
   });
 
+  it('rejects non-xlsx file on upload', async () => {
+    ({ root } = renderPanel());
+    await flushPromises();
+    await waitForTableRows();
+
+    const octoberRow = getDataRows().find((tr) => tr.textContent.includes('אוקטובר'));
+    const uploadBtn = [...octoberRow.querySelectorAll('button')].find((b) =>
+      b.textContent.includes('העלאה'),
+    );
+    const fileInput = octoberRow.querySelector('input[type="file"]');
+    const csvFile = new File(['a,b'], 'data.csv', { type: 'text/csv' });
+
+    await act(async () => {
+      uploadBtn.click();
+    });
+    Object.defineProperty(fileInput, 'files', { value: [csvFile], configurable: true });
+    await act(async () => {
+      fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await flushPromises();
+
+    expect(mockImportMonth).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain('.xlsx');
+  });
+
+  it('shows error alert when getYearStatus fails', async () => {
+    mockGetYearStatus.mockRejectedValueOnce({
+      response: { data: { message: 'שגיאת שרת לסטטוס' } },
+    });
+    ({ root } = renderPanel());
+    await flushPromises();
+
+    await vi.waitFor(() => {
+      expect(document.body.textContent).toContain('שגיאת שרת לסטטוס');
+    });
+  });
+
+  it('skips status load when employerId is falsy', async () => {
+    ({ root } = renderPanel(0));
+    await flushPromises();
+
+    expect(mockGetYearStatus).not.toHaveBeenCalled();
+    const generateBtn = [...document.querySelectorAll('button')].find((b) =>
+      b.textContent.includes('הפק דוח השוואה שנתי'),
+    );
+    expect(generateBtn?.disabled).toBe(true);
+  });
+
+  it('uses Content-Disposition filename when generating report', async () => {
+    mockAnnualComparisonSaved.mockResolvedValueOnce({
+      data: new Blob(['xlsx']),
+      headers: {
+        'content-disposition': 'attachment; filename*=UTF-8\'\'%D7%93%D7%95%D7%97.xlsx',
+      },
+    });
+    ({ root } = renderPanel(3));
+    await flushPromises();
+    await waitForTableRows();
+
+    const generateBtn = [...document.querySelectorAll('button')].find((b) =>
+      b.textContent.includes('הפק דוח השוואה שנתי'),
+    );
+    await act(async () => {
+      generateBtn.click();
+    });
+    await flushPromises();
+
+    await vi.waitFor(() => {
+      expect(global.URL.createObjectURL).toHaveBeenCalled();
+    });
+  });
+
+  it('treats non-array status response as empty table', async () => {
+    mockGetYearStatus.mockResolvedValueOnce({ data: { months: [] } });
+    ({ root } = renderPanel());
+    await flushPromises();
+
+    await vi.waitFor(() => {
+      expect(document.body.textContent).toContain('אין נתונים לשנת הלימודים');
+    });
+  });
+
   it('refreshes year status after successful upload', async () => {
     ({ root } = renderPanel());
     await flushPromises();

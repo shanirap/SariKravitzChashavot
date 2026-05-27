@@ -44,4 +44,27 @@ describe('parseApiErrorMessage', () => {
     const msg = await parseApiErrorMessage({ response: { data: blob } }, 'x');
     expect(msg).toBe('פרט');
   });
+
+  it('blob JSON prefers message over detail and title', async () => {
+    const blob = new Blob(
+      [JSON.stringify({ message: 'הודעה', detail: 'פרט', title: 'כותרת' })],
+      { type: 'application/json' },
+    );
+    const msg = await parseApiErrorMessage({ response: { data: blob } }, 'x');
+    expect(msg).toBe('הודעה');
+  });
+
+  it('blob JSON with only title returns title', async () => {
+    const blob = new Blob(
+      [JSON.stringify({ title: 'כותרת בלבד' })],
+      { type: 'application/json' },
+    );
+    const msg = await parseApiErrorMessage({ response: { data: blob } }, 'ברירת מחדל');
+    expect(msg).toBe('כותרת בלבד');
+  });
+
+  it('null error without response returns connection message', async () => {
+    const msg = await parseApiErrorMessage(null, 'שגיאה כללית');
+    expect(msg).toContain('לא ניתן להתחבר');
+  });
 });

@@ -33,6 +33,10 @@ public sealed class ReportsApiValidationTests
             "/api/reports/institution-hours?employerId=1&academicYear=תשפ\"ו&institutionSymbol=",
             "employerId, academicYear ו-institutionSymbol נדרשים."
         },
+        {
+            "/api/reports/annual-comparison-saved?employerId=0&academicYear=",
+            "employerId ו-academicYear נדרשים."
+        },
     };
 
     [Theory]
