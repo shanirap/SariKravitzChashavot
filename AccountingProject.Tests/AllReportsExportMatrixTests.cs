@@ -28,7 +28,7 @@ public sealed class AllReportsExportMatrixTests
         await AssertSheetAsync(await sut.InstitutionHoursAsync(employer.Id, Year, "G-1"), "בדיקת שעות לסמל");
 
         await using var upload = MonthlyComparisonUploadWorkbook.Create(
-            "123456789", null, "Worker", 9, 2025, b => b.Band1(misra1Hours: 30m, misra1Base: 28m));
+            "123456789", null, "Worker", 9, 2025, b => b.Band1(misra1Hours: 30m, misra1Base: 30m));
         await AssertSheetAsync(
             await sut.MonthlyComparisonAsync(employer.Id, Year, 9, upload),
             "השוואה חודשית");

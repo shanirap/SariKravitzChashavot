@@ -14,7 +14,7 @@ public sealed class EmploymentDataInstitutionValidationTests
         await ReportTestData.SeedSymbolAsync(db, employer.Id, "OWNED");
         var employee = await ReportTestData.SeedEmployeeAsync(db, employer.Id);
 
-        var sut = new EmploymentDataService(db);
+        var sut = ServiceTestFactory.CreateEmploymentDataService(db);
         var dto = new EmploymentDataDto
         {
             EmployeeId = employee.Id,

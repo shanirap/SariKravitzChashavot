@@ -104,6 +104,7 @@ public sealed class InstitutionHoursReportTests
         Assert.Equal(4.5m, ws.Cell(4, 2).GetValue<decimal>());
         Assert.Equal(34.5m, ws.Cell(4, 3).GetValue<decimal>());
         Assert.Equal(40m, ws.Cell(4, 4).GetValue<decimal>());
+        Assert.Equal(XLColor.LightPink, ws.Cell(4, 1).Style.Fill.BackgroundColor);
     }
 
     [Fact]
@@ -140,6 +141,7 @@ public sealed class InstitutionHoursReportTests
         Assert.Equal(0m, ws.Cell(4, 2).GetValue<decimal>());
         Assert.Equal(0m, ws.Cell(4, 3).GetValue<decimal>());
         Assert.Equal(0m, ws.Cell(4, 4).GetValue<decimal>());
+        Assert.Equal(XLColor.LightGreen, ws.Cell(4, 1).Style.Fill.BackgroundColor);
     }
 
     [Fact]
@@ -189,7 +191,7 @@ public sealed class InstitutionHoursReportTests
             SlotIndex = 1,
             InstitutionSymbol = "SYM-1",
             WeeklyHours = 15m,
-            JobBase = 28m,
+            JobBase = 30m,
         });
         ed.Grade2Role = "סייעת שניה";
         await db.SaveChangesAsync();
@@ -222,5 +224,36 @@ public sealed class InstitutionHoursReportTests
         Assert.Equal(0m, ws.Cell(3, 3).GetValue<decimal>());
         Assert.Equal(0m, ws.Cell(3, 4).GetValue<decimal>());
         Assert.Equal(RequiredTeacher, ws.Cell(4, 2).GetValue<decimal>());
+    }
+
+    [Fact]
+    public async Task InstitutionHours_AllSymbols_WritesBlockPerSymbol()
+    {
+        await using var db = DbTestFactory.CreateContext();
+        var employer = await ReportTestData.SeedEmployerAsync(db);
+        await ReportTestData.SeedSymbolAsync(db, employer.Id, "SYM-A");
+        await ReportTestData.SeedSymbolAsync(db, employer.Id, "SYM-B");
+
+        var empA = await ReportTestData.SeedEmployeeAsync(db, employer.Id, "111111111");
+        await ReportTestData.SeedEmploymentWithSlotAsync(
+            db, employer.Id, empA.Id, "SYM-A", weeklyHours: 30m, grade1Role: "גננת");
+
+        var empB = await ReportTestData.SeedEmployeeAsync(db, employer.Id, "222222222");
+        await ReportTestData.SeedEmploymentWithSlotAsync(
+            db, employer.Id, empB.Id, "SYM-B", weeklyHours: 20m, grade1Role: "גננת");
+
+        var bytes = await new ReportExportService(db).InstitutionHoursAsync(
+            employer.Id, ReportTestData.DefaultAcademicYear, ReportExportService.InstitutionHoursAllSymbols);
+
+        using var wb = new XLWorkbook(new MemoryStream(bytes));
+        var ws = wb.Worksheet(SheetName);
+
+        Assert.Equal("SYM-A", ws.Cell(2, 1).GetString());
+        Assert.Equal(30m, ws.Cell(3, 2).GetValue<decimal>());
+        Assert.Equal("הפרש", ws.Cell(4, 1).GetString());
+
+        Assert.Equal("SYM-B", ws.Cell(5, 1).GetString());
+        Assert.Equal(20m, ws.Cell(6, 2).GetValue<decimal>());
+        Assert.Equal("הפרש", ws.Cell(7, 1).GetString());
     }
 }

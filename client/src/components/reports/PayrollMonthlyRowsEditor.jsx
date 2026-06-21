@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Modal as BSModal } from 'bootstrap';
 import { payrollMonthlyInputsApi } from '../../api';
 import { parseApiErrorMessage } from '../../utils/apiErrorMessage';
+import './PayrollMonthlyRowsEditor.css';
 
 const MONTH_LABELS = {
   9: 'ספטמבר',
@@ -184,7 +185,7 @@ export default function PayrollMonthlyRowsEditor({
 
     setSaving(true);
     try {
-      await payrollMonthlyInputsApi.updateRow(editingRow.id, formToPayload(editForm));
+      await payrollMonthlyInputsApi.updateRow(employerId, editingRow.id, formToPayload(editForm));
       closeEdit();
       showAlert('success', 'השורה נשמרה בהצלחה.');
       await loadRows();
@@ -210,7 +211,7 @@ export default function PayrollMonthlyRowsEditor({
         aria-labelledby="payrollRowsEditorTitle"
         aria-hidden="true"
       >
-        <div className="modal-dialog modal-xl modal-dialog-scrollable">
+        <div className="modal-dialog modal-dialog-scrollable payroll-rows-editor-dialog">
           <div className="modal-content">
             <div className="modal-header">
               <h5 className="modal-title" id="payrollRowsEditorTitle">
@@ -264,14 +265,14 @@ export default function PayrollMonthlyRowsEditor({
               ) : !error && rows.length === 0 ? (
                 <p className="text-muted mb-0">אין שורות לחודש זה.</p>
               ) : !error ? (
-                <div className="table-responsive">
-                  <table className="table table-sm table-hover mb-0 align-middle">
+                <div className="payroll-rows-editor-table-wrap">
+                  <table className="table table-hover align-middle payroll-rows-editor-table">
                     <thead className="table-light">
                       <tr>
                         <th>סמל מוסד</th>
                         <th>מספר עובד בעוקץ</th>
                         <th>ת&quot;ז</th>
-                        <th>שם פרטי+שם משפחה</th>
+                        <th>שם משפחה+שם פרטי</th>
                         <th>תפקיד</th>
                         <th>דרגה</th>
                         <th>ותק</th>

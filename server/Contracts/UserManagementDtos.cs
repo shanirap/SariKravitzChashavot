@@ -10,11 +10,13 @@ namespace AccountingProject.Contracts
         public DateTimeOffset CreatedAt { get; set; }
     }
 
-    /// <summary>Creates a local office account (Admin API only).</summary>
+    /// <summary>Creates a local office account (Admin API only). Role is ignored; all users are Admin.</summary>
     public sealed class AdminCreateUserRequestDto
     {
         public string Username { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
+
+        /// <summary>Ignored for backward compatibility; server always assigns Admin.</summary>
         public string Role { get; set; } = string.Empty;
     }
 

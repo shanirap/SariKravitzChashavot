@@ -9,6 +9,8 @@ public sealed class AnnualComparisonReportTests
 {
     private const string SheetName = "השוואה שנתית";
     private const string Year = "תשפ\"ו";
+    /// <summary>First school-year month column (10 static headers + 1).</summary>
+    private const int FirstMonthColumn = 11;
 
     [Fact]
     public async Task AnnualComparison_WithoutYearColumn_InfersGregorianYear()
@@ -63,14 +65,14 @@ public sealed class AnnualComparisonReportTests
 
         var sepYear = 2025;
         var seq = SchoolYearGregorian.GetSchoolYearMonthSequence(sepYear);
-        var col = 10;
+        var col = 11;
         foreach (var (m, y) in seq)
         {
             Assert.Equal($"{m}.{y}", ws.Cell(1, col).GetString());
             col++;
         }
 
-        Assert.Equal(21, col - 1);
+        Assert.Equal(22, col - 1);
     }
 
     [Fact]
@@ -87,21 +89,23 @@ public sealed class AnnualComparisonReportTests
 
         await using var upload = MonthlyComparisonUploadWorkbook.Create(
             "111222333", null, "Test User", 9, 2025,
-            b => b.Band1(misra1Hours: 30m, misra1Base: 28m, jobPercent: 100m, ageHours: 2m));
+            b => b.Band1(misra1Hours: 30m, misra1Base: 30m, jobPercent: 100m, ageHours: 2m));
 
         var bytes = await new ReportExportService(db).AnnualComparisonAsync(employer.Id, Year, upload);
         using var wb = new XLWorkbook(new MemoryStream(bytes));
-        Assert.Equal("V", wb.Worksheet(SheetName).Cell(2, 10).GetString());
+        Assert.Equal("V", wb.Worksheet(SheetName).Cell(2, FirstMonthColumn).GetString());
     }
 
     [Fact]
-    public async Task AnnualComparison_RoleMismatch_ShowsDetail()
+    public async Task AnnualComparison_PayrollSugMisraDiffersFromSystemRole_ShowsVAndStaticSugMisra()
     {
         await using var db = DbTestFactory.CreateContext();
         var employer = await ReportTestData.SeedEmployerAsync(db);
         var employee = await ReportTestData.SeedEmployeeAsync(db, employer.Id, "222333444");
-        await ReportTestData.SeedEmploymentWithSlotAsync(
+        var ed = await ReportTestData.SeedEmploymentWithSlotAsync(
             db, employer.Id, employee.Id, "SYM-1", weeklyHours: 30m, grade1Role: "גננת");
+        ed.Grade1JobPercent = 100m;
+        await db.SaveChangesAsync();
 
         await using var upload = MonthlyComparisonUploadWorkbook.Create(
             "222333444", null, "Test User", 9, 2025,
@@ -116,10 +120,13 @@ public sealed class AnnualComparisonReportTests
 
         var bytes = await new ReportExportService(db).AnnualComparisonAsync(employer.Id, Year, ms);
         using var wb = new XLWorkbook(new MemoryStream(bytes));
-        var cell = wb.Worksheet(SheetName).Cell(2, 10).GetString();
-        Assert.Contains("תפקיד:", cell);
-        Assert.Contains("גננת", cell);
-        Assert.Contains("סייעת", cell);
+        var ws = wb.Worksheet(SheetName);
+        Assert.Equal("גננת", ws.Cell(2, 3).GetString());
+        Assert.Equal("סייעת", ws.Cell(2, 4).GetString());
+        var cell = ws.Cell(2, FirstMonthColumn).GetString();
+        Assert.Contains("סוג משרה:", cell);
+        Assert.Contains("נדרש=משרה חודשית", cell);
+        Assert.DoesNotContain("תפקיד:", cell);
     }
 
     [Fact]
@@ -137,7 +144,7 @@ public sealed class AnnualComparisonReportTests
 
         var bytes = await new ReportExportService(db).AnnualComparisonAsync(employer.Id, Year, upload);
         using var wb = new XLWorkbook(new MemoryStream(bytes));
-        var cell = wb.Worksheet(SheetName).Cell(2, 10).GetString();
+        var cell = wb.Worksheet(SheetName).Cell(2, FirstMonthColumn).GetString();
         Assert.Contains("דרגה:", cell);
     }
 
@@ -155,7 +162,7 @@ public sealed class AnnualComparisonReportTests
 
         var bytes = await new ReportExportService(db).AnnualComparisonAsync(employer.Id, Year, upload);
         using var wb = new XLWorkbook(new MemoryStream(bytes));
-        var cell = wb.Worksheet(SheetName).Cell(2, 10).GetString();
+        var cell = wb.Worksheet(SheetName).Cell(2, FirstMonthColumn).GetString();
         Assert.Contains("הכפלה כללית:", cell);
     }
 
@@ -173,18 +180,18 @@ public sealed class AnnualComparisonReportTests
             SlotIndex = 2,
             InstitutionSymbol = "SYM-B",
             WeeklyHours = 10m,
-            JobBase = 28m,
+            JobBase = 30m,
         });
         await db.SaveChangesAsync();
 
         await using var upload = MonthlyComparisonUploadWorkbook.Create(
             "555666777", null, "Test User", 9, 2025,
-            b => b.Band1(misra1Hours: 20m, misra1Base: 28m, misra2Hours: 10m, misra2Base: 28m, jobPercent: 0m));
+            b => b.Band1(misra1Hours: 20m, misra1Base: 30m, misra2Hours: 10m, misra2Base: 30m, jobPercent: 0m));
 
         var bytes = await new ReportExportService(db).AnnualComparisonAsync(employer.Id, Year, upload);
         using var wb = new XLWorkbook(new MemoryStream(bytes));
-        Assert.Equal("V", wb.Worksheet(SheetName).Cell(2, 10).GetString());
-        Assert.Equal("V", wb.Worksheet(SheetName).Cell(3, 10).GetString());
+        Assert.Equal("V", wb.Worksheet(SheetName).Cell(2, FirstMonthColumn).GetString());
+        Assert.Equal("V", wb.Worksheet(SheetName).Cell(3, FirstMonthColumn).GetString());
     }
 
     [Fact]
@@ -202,7 +209,7 @@ public sealed class AnnualComparisonReportTests
 
         var bytes = await new ReportExportService(db).AnnualComparisonAsync(employer.Id, Year, upload);
         using var wb = new XLWorkbook(new MemoryStream(bytes));
-        var cell = wb.Worksheet(SheetName).Cell(2, 10).GetString();
+        var cell = wb.Worksheet(SheetName).Cell(2, FirstMonthColumn).GetString();
         Assert.Contains("ש\"ש:", cell);
         Assert.Contains("30", cell);
         Assert.Contains("25", cell);
@@ -224,7 +231,7 @@ public sealed class AnnualComparisonReportTests
 
         var bytes = await new ReportExportService(db).AnnualComparisonAsync(employer.Id, Year, upload);
         using var wb = new XLWorkbook(new MemoryStream(bytes));
-        var cell = wb.Worksheet(SheetName).Cell(2, 10).GetString();
+        var cell = wb.Worksheet(SheetName).Cell(2, FirstMonthColumn).GetString();
         Assert.Contains("ותק:", cell, StringComparison.Ordinal);
     }
 
@@ -241,7 +248,7 @@ public sealed class AnnualComparisonReportTests
 
         var bytes = await new ReportExportService(db).AnnualComparisonAsync(employer.Id, Year, upload);
         using var wb = new XLWorkbook(new MemoryStream(bytes));
-        Assert.Equal("לא נמצא בקלט", wb.Worksheet(SheetName).Cell(2, 10).GetString());
+        Assert.Equal("לא נמצא בקלט", wb.Worksheet(SheetName).Cell(2, FirstMonthColumn).GetString());
     }
 
     [Fact]
@@ -271,13 +278,38 @@ public sealed class AnnualComparisonReportTests
             b => b.Band1().Band2(misra1Hours: 15m, misra1Base: 9m, jobPercent: 0m));
 
         using var wbIn = new XLWorkbook(upload);
-        wbIn.Worksheet(1).Cell(4, 6).Value = "סייעת";
         var ms = new MemoryStream();
         wbIn.SaveAs(ms);
         ms.Position = 0;
 
         var bytes = await new ReportExportService(db).AnnualComparisonAsync(employer.Id, Year, ms);
         using var wb = new XLWorkbook(new MemoryStream(bytes));
-        Assert.Equal("V", wb.Worksheet(SheetName).Cell(2, 10).GetString());
+        Assert.Equal("V", wb.Worksheet(SheetName).Cell(2, FirstMonthColumn).GetString());
+    }
+
+    [Fact]
+    public async Task AnnualComparison_NonMonthlySugMisra_ShowsDetail()
+    {
+        await using var db = DbTestFactory.CreateContext();
+        var employer = await ReportTestData.SeedEmployerAsync(db);
+        var employee = await ReportTestData.SeedEmployeeAsync(db, employer.Id, "707080809");
+        await ReportTestData.SeedEmploymentWithSlotAsync(
+            db, employer.Id, employee.Id, "SYM-1", weeklyHours: 30m);
+
+        await using var upload = MonthlyComparisonUploadWorkbook.Create(
+            "707080809", null, "Test User", 9, 2025,
+            b => b.Band1(misra1Hours: 30m));
+
+        using var wbIn = new XLWorkbook(upload);
+        wbIn.Worksheet(1).Cell(4, 6).Value = "משרה שעתית";
+        var ms = new MemoryStream();
+        wbIn.SaveAs(ms);
+        ms.Position = 0;
+
+        var bytes = await new ReportExportService(db).AnnualComparisonAsync(employer.Id, Year, ms);
+        using var wb = new XLWorkbook(new MemoryStream(bytes));
+        var cell = wb.Worksheet(SheetName).Cell(2, FirstMonthColumn).GetString();
+        Assert.Contains("סוג משרה:", cell);
+        Assert.Contains("נדרש=משרה חודשית", cell);
     }
 }

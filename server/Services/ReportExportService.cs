@@ -21,9 +21,19 @@ namespace AccountingProject.Services
 
     public sealed class ReportExportService : IReportExportService
     {
-        private readonly PayrollDbContext _db;
+        /// <summary>Sentinel for institution-hours report: all symbols for the employer.</summary>
+        public const string InstitutionHoursAllSymbols = "*";
 
-        public ReportExportService(PayrollDbContext db) => _db = db;
+        private readonly PayrollDbContext _db;
+        private readonly IAnnualComparisonSavedReportService _annualSavedReport;
+
+        public ReportExportService(
+            PayrollDbContext db,
+            IAnnualComparisonSavedReportService? annualSavedReport = null)
+        {
+            _db = db;
+            _annualSavedReport = annualSavedReport ?? new AnnualComparisonSavedReportService(db);
+        }
 
         // ─────────────────────────────────────────────────────────────────
         //  Parse Hebrew academic year string (e.g. תשפ"ו) to September Gregorian year (e.g. 2025).
@@ -95,22 +105,23 @@ namespace AccountingProject.Services
         //  Report 1 — מצבת גנים שנתי (לפי סוג מוסד = גן)
         // ─────────────────────────────────────────────────────────────────
         public Task<byte[]> KindergartenAnnualAsync(int employerId, string academicYear) =>
-            BuildAnnualRosterByInstitutionTypeAsync(employerId, academicYear, InstitutionTypes.Kindergarten, "מצבת גנים");
+            BuildAnnualRosterByInstitutionTypeAsync(employerId, RequireCanonicalAcademicYear(academicYear), InstitutionTypes.Kindergarten, "מצבת גנים");
 
         // ─────────────────────────────────────────────────────────────────
         //  Report 2 — מצבת בית ספר שנתי (לפי סוג מוסד = בית ספר)
         // ─────────────────────────────────────────────────────────────────
         public Task<byte[]> SchoolAnnualAsync(int employerId, string academicYear) =>
-            BuildAnnualRosterByInstitutionTypeAsync(employerId, academicYear, InstitutionTypes.School, "מצבת בית ספר");
+            BuildAnnualRosterByInstitutionTypeAsync(employerId, RequireCanonicalAcademicYear(academicYear), InstitutionTypes.School, "מצבת בית ספר");
 
         // ─────────────────────────────────────────────────────────────────
         //  Report 3 — דוח השוואה לפי חודש מסוים (V/X מול קובץ עוקץ)
         // ─────────────────────────────────────────────────────────────────
         public async Task<byte[]> MonthlyComparisonAsync(int employerId, string academicYear, int month, Stream uploadedFile)
         {
-            var records = await GetEmploymentDataWithSlots(employerId, academicYear);
+            var canonicalYear = RequireCanonicalAcademicYear(academicYear);
+            var records = await GetEmploymentDataWithSlots(employerId, canonicalYear);
             return MonthlyComparisonReportBuilder.Build(
-                records, academicYear, month, uploadedFile, ParseSeptemberGregorianYear);
+                records, canonicalYear, month, uploadedFile, ParseSeptemberGregorianYear);
         }
 
         // ─────────────────────────────────────────────────────────────────
@@ -118,30 +129,32 @@ namespace AccountingProject.Services
         // ─────────────────────────────────────────────────────────────────
         public async Task<byte[]> AnnualComparisonAsync(int employerId, string academicYear, Stream uploadedFile)
         {
-            var records = await GetEmploymentDataWithSlots(employerId, academicYear);
+            var canonicalYear = RequireCanonicalAcademicYear(academicYear);
+            var records = await GetEmploymentDataWithSlots(employerId, canonicalYear);
             return AnnualComparisonReportBuilder.Build(
-                records, academicYear, uploadedFile, ParseSeptemberGregorianYear);
+                records, canonicalYear, uploadedFile, ParseSeptemberGregorianYear);
         }
 
         public async Task<byte[]> AnnualComparisonFromSavedDataAsync(int employerId, string academicYear)
         {
+            var canonicalYear = RequireCanonicalAcademicYear(academicYear);
             if (!await _db.Employers.AnyAsync(e => e.Id == employerId))
                 throw new InvalidOperationException("המעסיק לא נמצא במערכת.");
 
-            var records = await GetEmploymentDataWithSlots(employerId, academicYear);
-            var canonYear = PayrollComparisonUploadSupport.CanonAcademicYear(academicYear);
-            int sepYear;
-            try { sepYear = ParseSeptemberGregorianYear(canonYear); }
-            catch { sepYear = DateTime.UtcNow.Year - 1; }
+            var records = await GetEmploymentDataWithSlots(employerId, canonicalYear);
+            if (!HebrewAcademicYear.TryParseSeptemberGregorianYear(canonicalYear, out var sepYear))
+                throw new InvalidOperationException(HebrewAcademicYear.InvalidMessage);
 
             var monthSequence = SchoolYearGregorian.GetSchoolYearMonthSequence(sepYear);
-            var (activeBatches, comparisonRows) = await LoadSavedAnnualComparisonInputAsync(employerId, canonYear);
+            var (activeBatches, comparisonRows) = await LoadSavedAnnualComparisonInputAsync(employerId, canonicalYear);
+            var overrides = await _annualSavedReport.LoadOverridesBySlotAsync(employerId, canonicalYear);
 
             return AnnualComparisonReportBuilder.BuildFromSavedData(
                 records,
                 monthSequence,
                 activeBatches,
-                comparisonRows);
+                comparisonRows,
+                overrides);
         }
 
         // ─────────────────────────────────────────────────────────────────
@@ -161,8 +174,67 @@ namespace AccountingProject.Services
                 "סייעת שניה",
             ];
 
-            var records = await GetEmploymentDataWithSlots(employerId, academicYear);
+            var canonicalYear = RequireCanonicalAcademicYear(academicYear);
+            var records = await GetEmploymentDataWithSlots(employerId, canonicalYear);
+            var symbols = IsInstitutionHoursAllSymbols(institutionSymbol)
+                ? await ResolveInstitutionHoursSymbolsAsync(employerId, records)
+                : [institutionSymbol.Trim()];
 
+            using var wb = new XLWorkbook();
+            var ws = wb.Worksheets.Add(SheetName);
+            SetHeaders(ws, headers);
+
+            var row = 2;
+            foreach (var sym in symbols)
+            {
+                var (actualGannet, actualAssistant, actualSecondAssistant) =
+                    InstitutionHoursComputeRoster(records, sym);
+                row = InstitutionHoursWriteSymbolBlock(
+                    ws,
+                    row,
+                    sym,
+                    actualGannet,
+                    actualAssistant,
+                    actualSecondAssistant,
+                    RequiredTeacherHours,
+                    RequiredAssistantHours,
+                    RequiredSecondAssistantHours,
+                    headers.Length);
+            }
+
+            BoldAndFit(ws, headers.Length, Math.Max(row - 1, 1));
+            return ToBytes(wb);
+        }
+
+        public static bool IsInstitutionHoursAllSymbols(string? institutionSymbol) =>
+            string.Equals(institutionSymbol?.Trim(), InstitutionHoursAllSymbols, StringComparison.Ordinal);
+
+        private async Task<List<string>> ResolveInstitutionHoursSymbolsAsync(
+            int employerId,
+            IReadOnlyList<Models.EmploymentData> records)
+        {
+            var fromDb = await _db.EmployerInstitutionSymbols
+                .Where(s => s.EmployerId == employerId)
+                .Select(s => s.InstitutionSymbol)
+                .ToListAsync();
+
+            var fromSlots = records
+                .SelectMany(ed => ed.Slots)
+                .Select(s => s.InstitutionSymbol?.Trim())
+                .Where(s => !string.IsNullOrWhiteSpace(s));
+
+            return fromDb
+                .Concat(fromSlots)
+                .Select(s => s!.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(s => s, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        private static (decimal Gannet, decimal Assistant, decimal SecondAssistant) InstitutionHoursComputeRoster(
+            IReadOnlyList<Models.EmploymentData> records,
+            string institutionSymbol)
+        {
             decimal actualGannet = 0;
             decimal actualAssistant = 0;
             decimal actualSecondAssistant = 0;
@@ -185,28 +257,44 @@ namespace AccountingProject.Services
                 }
             }
 
-            using var wb = new XLWorkbook();
-            var ws = wb.Worksheets.Add(SheetName);
-            SetHeaders(ws, headers);
+            return (actualGannet, actualAssistant, actualSecondAssistant);
+        }
 
-            ws.Cell(2, 1).Value = institutionSymbol;
-            ws.Cell(2, 2).Value = RequiredTeacherHours;
-            ws.Cell(2, 3).Value = RequiredAssistantHours;
-            ws.Cell(2, 4).Value = RequiredSecondAssistantHours;
+        private static int InstitutionHoursWriteSymbolBlock(
+            IXLWorksheet ws,
+            int row,
+            string institutionSymbol,
+            decimal actualGannet,
+            decimal actualAssistant,
+            decimal actualSecondAssistant,
+            decimal requiredTeacherHours,
+            decimal requiredAssistantHours,
+            decimal requiredSecondAssistantHours,
+            int columnCount)
+        {
+            ws.Cell(row, 1).Value = institutionSymbol;
+            ws.Cell(row, 2).Value = requiredTeacherHours;
+            ws.Cell(row, 3).Value = requiredAssistantHours;
+            ws.Cell(row, 4).Value = requiredSecondAssistantHours;
+            row++;
 
-            ws.Cell(3, 1).Value = "מצבת";
-            ws.Cell(3, 2).Value = actualGannet;
-            ws.Cell(3, 3).Value = actualAssistant;
-            ws.Cell(3, 4).Value = actualSecondAssistant;
+            ws.Cell(row, 1).Value = "מצבת";
+            ws.Cell(row, 2).Value = actualGannet;
+            ws.Cell(row, 3).Value = actualAssistant;
+            ws.Cell(row, 4).Value = actualSecondAssistant;
+            row++;
 
-            ws.Cell(4, 1).Value = "הפרש";
-            ws.Cell(4, 2).Value = RequiredTeacherHours - actualGannet;
-            ws.Cell(4, 3).Value = RequiredAssistantHours - actualAssistant;
-            ws.Cell(4, 4).Value = RequiredSecondAssistantHours - actualSecondAssistant;
-            ws.Range(4, 1, 4, headers.Length).Style.Fill.BackgroundColor = XLColor.LightPink;
-
-            BoldAndFit(ws, headers.Length, 4);
-            return ToBytes(wb);
+            ws.Cell(row, 1).Value = "הפרש";
+            var diffGannet = requiredTeacherHours - actualGannet;
+            var diffAssistant = requiredAssistantHours - actualAssistant;
+            var diffSecond = requiredSecondAssistantHours - actualSecondAssistant;
+            ws.Cell(row, 2).Value = diffGannet;
+            ws.Cell(row, 3).Value = diffAssistant;
+            ws.Cell(row, 4).Value = diffSecond;
+            var allDifferencesZero = diffGannet == 0 && diffAssistant == 0 && diffSecond == 0;
+            ws.Range(row, 1, row, columnCount).Style.Fill.BackgroundColor =
+                allDifferencesZero ? XLColor.LightGreen : XLColor.LightPink;
+            return row + 1;
         }
 
         private static bool InstitutionHoursSlotMatches(Models.EmploymentDataSlot slot, string institutionSymbol) =>
@@ -272,15 +360,15 @@ namespace AccountingProject.Services
             using var wb = new XLWorkbook();
             var ws = wb.Worksheets.Add("עובדים אישיים");
             var childHeaders = Enumerable.Range(1, 10).Select(n => $"ילד {n}").ToArray();
-            string[] headers = ["שם פרטי", "שם משפחה", "ת\"ז", "תאריך לידה", "טלפון", "מין", "מעסיק", "סטטוס", .. childHeaders];
+            string[] headers = ["שם משפחה", "שם פרטי", "ת\"ז", "תאריך לידה", "טלפון", "מין", "מעסיק", "סטטוס", .. childHeaders];
             SetHeaders(ws, headers);
 
             var r = 2;
             foreach (var emp in employees)
             {
                 var active = emp.ManualActiveStatus ?? employeeIdsWithEd.Contains(emp.Id);
-                ws.Cell(r, 1).Value = emp.FirstName ?? "";
-                ws.Cell(r, 2).Value = emp.LastName ?? "";
+                ws.Cell(r, 1).Value = emp.LastName ?? "";
+                ws.Cell(r, 2).Value = emp.FirstName ?? "";
                 ws.Cell(r, 3).Value = emp.IdNumber;
                 ws.Cell(r, 4).Value = FormatDate(emp.BirthDate);
                 ws.Cell(r, 5).Value = emp.Phone ?? "";
@@ -301,7 +389,8 @@ namespace AccountingProject.Services
         // ─────────────────────────────────────────────────────────────────
         public async Task<byte[]> EmployeesEmploymentDataAsync(int employerId, string academicYear)
         {
-            var records = await GetEmploymentDataWithSlots(employerId, academicYear);
+            var canonicalYear = RequireCanonicalAcademicYear(academicYear);
+            var records = await GetEmploymentDataWithSlots(employerId, canonicalYear);
 
             using var wb = new XLWorkbook();
             var ws = wb.Worksheets.Add("עובדים נתוני העסקה");
@@ -431,16 +520,25 @@ namespace AccountingProject.Services
         // ─────────────────────────────────────────────────────────────────
         //  Private — shared DB query
         // ─────────────────────────────────────────────────────────────────
-        private async Task<List<Models.EmploymentData>> GetEmploymentDataWithSlots(int employerId, string academicYear)
+        private async Task<List<Models.EmploymentData>> GetEmploymentDataWithSlots(int employerId, string canonicalAcademicYear)
         {
-            return await _db.EmploymentData
+            var rows = await _db.EmploymentData
                 .Include(e => e.Employee)
                 .Include(e => e.Employer)
                 .Include(e => e.Slots)
-                .Where(e => e.EmployerId == employerId
-                         && e.AcademicYear == academicYear
-                         && !e.IsDeleted)
+                .Where(e => e.EmployerId == employerId && !e.IsDeleted)
                 .ToListAsync();
+
+            return rows
+                .Where(e => HebrewAcademicYear.CanonicalForComparison(e.AcademicYear) == canonicalAcademicYear)
+                .ToList();
+        }
+
+        private static string RequireCanonicalAcademicYear(string academicYear)
+        {
+            if (!HebrewAcademicYear.TryValidateAndCanonicalize(academicYear, out var canonical))
+                throw new InvalidOperationException(HebrewAcademicYear.InvalidMessage);
+            return canonical;
         }
 
         private async Task<(List<PayrollMonthlyInputBatch> ActiveBatches, List<PayrollComparisonInputRow> ComparisonRows)>

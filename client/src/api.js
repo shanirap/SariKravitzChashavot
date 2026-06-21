@@ -203,6 +203,20 @@ export const reportsApi = {
       params: { employerId, academicYear },
       responseType: 'blob',
     }),
+  annualComparisonSavedPreview: (employerId, academicYear) =>
+    api.get('/reports/annual-comparison-saved/preview', {
+      params: { employerId, academicYear },
+    }),
+  saveAnnualComparisonOverrides: (employerId, academicYear, rows) =>
+    api.put('/reports/annual-comparison-saved/overrides', {
+      employerId,
+      academicYear,
+      rows,
+    }),
+  clearAnnualComparisonOverrides: (employerId, academicYear, slotId) =>
+    api.delete('/reports/annual-comparison-saved/overrides', {
+      params: { employerId, academicYear, ...(slotId != null ? { slotId } : {}) },
+    }),
 };
 
 export const payrollMonthlyInputsApi = {
@@ -221,10 +235,14 @@ export const payrollMonthlyInputsApi = {
     api.get('/payroll-monthly-inputs/rows', {
       params: { employerId, academicYear, month },
     }),
-  updateRow: (rowId, payload) =>
-    api.put(`/payroll-monthly-inputs/rows/${rowId}`, payload),
-  deleteRow: (rowId) =>
-    api.delete(`/payroll-monthly-inputs/rows/${rowId}`),
+  updateRow: (employerId, rowId, payload) =>
+    api.put(`/payroll-monthly-inputs/rows/${rowId}`, payload, {
+      params: { employerId },
+    }),
+  deleteRow: (employerId, rowId) =>
+    api.delete(`/payroll-monthly-inputs/rows/${rowId}`, {
+      params: { employerId },
+    }),
 };
 
 export const employmentDataApi = {

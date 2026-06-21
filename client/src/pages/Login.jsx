@@ -35,6 +35,21 @@ export default function Login() {
 
   return (
     <div className="d-flex min-vh-100 align-items-center justify-content-center px-3" style={{ background: 'var(--brand-light)' }}>
+       <div className="d-flex flex-column align-items-center w-100" style={{ maxWidth: 480 }}>
+      <div
+        className="mb-4 text-center w-100"
+        style={{
+          background: '#fff',
+          borderRadius: 12,
+          padding: '16px 32px',
+        }}
+      >
+        <img
+          src="/logo.png"
+          alt="שרי קרביץ"
+          style={{ height: 120, width: '100%', maxWidth: 420, objectFit: 'contain' }}
+        />
+      </div>
       <div className="card shadow" style={{ maxWidth: 420, width: '100%' }}>
         <div className="card-header text-center">
           כניסה למערכת
@@ -82,6 +97,7 @@ export default function Login() {
             </p>
           ) : null}
         </div>
+      </div>
       </div>
     </div>
   );

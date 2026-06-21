@@ -13,7 +13,7 @@ public sealed class EmployeeIntegrityTests
         await using var db = DbTestFactory.CreateContext();
         var (emp1, emp2) = SeedTwoEmployersAndEmployees(db);
 
-        var sut = new EmploymentDataService(db);
+        var sut = ServiceTestFactory.CreateEmploymentDataService(db);
         var dto = BasicEmploymentDto(emp1.Id, emp2.EmployerId, "תשפ\"ו");
 
         var (record, message) = await sut.CreateAsync(dto);
@@ -37,7 +37,7 @@ public sealed class EmployeeIntegrityTests
         await db.SaveChangesAsync();
         var existing = await db.EmploymentData.FirstAsync();
 
-        var sut = new EmploymentDataService(db);
+        var sut = ServiceTestFactory.CreateEmploymentDataService(db);
         var dto = BasicEmploymentDto(emp2.Id, emp1.EmployerId, "תשפ\"ז");
 
         var (record, message) = await sut.UpdateAsync(existing.Id, dto);
@@ -84,6 +84,24 @@ public sealed class EmployeeIntegrityTests
 
         Assert.True(created.CreatedNew);
         Assert.Equal(0, await db.EmploymentData.CountAsync());
+    }
+
+    [Fact]
+    public async Task DeleteAsync_WhenEmploymentDataExists_ReturnsFailure()
+    {
+        await using var db = DbTestFactory.CreateContext();
+        var employer = await ReportTestData.SeedEmployerAsync(db);
+        var employee = await ReportTestData.SeedEmployeeAsync(db, employer.Id);
+        await ReportTestData.SeedSymbolAsync(db, employer.Id, "SYM1");
+        await ReportTestData.SeedEmploymentWithSlotAsync(db, employer.Id, employee.Id, "SYM1");
+
+        var sut = new EmployeeService(db);
+        var (success, message) = await sut.DeleteAsync(employee.Id);
+
+        Assert.False(success);
+        Assert.NotNull(message);
+        Assert.Contains("נתוני העסקה", message);
+        Assert.True(await db.Employees.AnyAsync(e => e.Id == employee.Id));
     }
 
     private static (Employee Emp1, Employee Emp2) SeedTwoEmployersAndEmployees(PayrollDbContext db)

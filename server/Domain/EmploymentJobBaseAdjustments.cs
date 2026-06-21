@@ -1,7 +1,7 @@
 namespace AccountingProject.Domain
 {
     /// <summary>
-    /// בסיס משרה במקטעים נשמר כ"net": בסיס גולמי (מילוי/יבוא) פחות שעות גיל של אותה רמת דרגה.
+    /// בסיס משרה לחישוב אחוז משרה: בסיס גולמי (שמור במקטע) פחות שעות גיל של אותה רמת דרגה.
     /// </summary>
     public static class EmploymentJobBaseAdjustments
     {

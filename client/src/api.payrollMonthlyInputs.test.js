@@ -62,14 +62,18 @@ describe('payrollMonthlyInputsApi', () => {
     });
   });
 
-  it('updateRow PUTs payload to row path', async () => {
+  it('updateRow PUTs payload to row path with employerId', async () => {
     const payload = { role: 'גננת', weeklyHours: 30 };
-    await payrollMonthlyInputsApi.updateRow(42, payload);
-    expect(mockPut).toHaveBeenCalledWith('/payroll-monthly-inputs/rows/42', payload);
+    await payrollMonthlyInputsApi.updateRow(5, 42, payload);
+    expect(mockPut).toHaveBeenCalledWith('/payroll-monthly-inputs/rows/42', payload, {
+      params: { employerId: 5 },
+    });
   });
 
-  it('deleteRow DELETEs row path', async () => {
-    await payrollMonthlyInputsApi.deleteRow(99);
-    expect(mockDelete).toHaveBeenCalledWith('/payroll-monthly-inputs/rows/99');
+  it('deleteRow DELETEs row path with employerId', async () => {
+    await payrollMonthlyInputsApi.deleteRow(5, 99);
+    expect(mockDelete).toHaveBeenCalledWith('/payroll-monthly-inputs/rows/99', {
+      params: { employerId: 5 },
+    });
   });
 });

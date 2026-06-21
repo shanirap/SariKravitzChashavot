@@ -45,6 +45,7 @@ public sealed class UsersApiIntegrationTests
         Assert.Equal(HttpStatusCode.Created, createResp.StatusCode);
         var created = await createResp.Content.ReadFromJsonAsync<UserSummaryJson>(Json);
         Assert.NotNull(created?.Id);
+        Assert.Equal(UserRoles.Admin, created!.Role);
 
         var pwResp = await client.PutAsJsonAsync(
             $"/api/users/{created!.Id}/password",

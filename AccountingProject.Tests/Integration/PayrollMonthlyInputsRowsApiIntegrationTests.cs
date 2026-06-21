@@ -55,7 +55,7 @@ public sealed class PayrollMonthlyInputsRowsApiIntegrationTests
         var seed = await SeedActiveBatchWithRowAsync(factory);
 
         var updateResp = await client.PutAsJsonAsync(
-            $"/api/payroll-monthly-inputs/rows/{seed.RowId}",
+            $"/api/payroll-monthly-inputs/rows/{seed.RowId}?employerId={seed.EmployerId}",
             new PayrollMonthlyInputRowEditDto
             {
                 FullName = "Updated Name",
@@ -77,7 +77,7 @@ public sealed class PayrollMonthlyInputsRowsApiIntegrationTests
         var seed = await SeedActiveBatchWithRowAsync(factory);
 
         var updateResp = await client.PutAsJsonAsync(
-            $"/api/payroll-monthly-inputs/rows/{seed.RowId}",
+            $"/api/payroll-monthly-inputs/rows/{seed.RowId}?employerId={seed.EmployerId}",
             new PayrollMonthlyInputRowEditDto { Role = "Teacher" });
         updateResp.EnsureSuccessStatusCode();
         var updated = await updateResp.Content.ReadFromJsonAsync<PayrollMonthlyInputRowDto>(Json);
@@ -91,7 +91,7 @@ public sealed class PayrollMonthlyInputsRowsApiIntegrationTests
         await using var factory = new AccountingWebApplicationFactory();
         var client = await IntegrationAuth.CreateAdminClientAsync(factory);
 
-        var resp = await client.DeleteAsync("/api/payroll-monthly-inputs/rows/424242");
+        var resp = await client.DeleteAsync("/api/payroll-monthly-inputs/rows/424242?employerId=1");
 
         Assert.Equal(HttpStatusCode.NotFound, resp.StatusCode);
         var message = await IntegrationResponseAssert.ReadMessageAsync(resp);
@@ -105,11 +105,50 @@ public sealed class PayrollMonthlyInputsRowsApiIntegrationTests
         var client = await IntegrationAuth.CreateAdminClientAsync(factory);
         var seed = await SeedActiveBatchWithRowAsync(factory);
 
-        var deleteResp = await client.DeleteAsync($"/api/payroll-monthly-inputs/rows/{seed.RowId}");
+        var deleteResp = await client.DeleteAsync(
+            $"/api/payroll-monthly-inputs/rows/{seed.RowId}?employerId={seed.EmployerId}");
         Assert.Equal(HttpStatusCode.NoContent, deleteResp.StatusCode);
 
         var rows = await GetRowsAsync(client, seed.EmployerId, Month);
         Assert.DoesNotContain(rows, r => r.Id == seed.RowId);
+    }
+
+    [Fact]
+    public async Task Rows_UpdateWithWrongEmployerId_Returns404AndDoesNotChangeRow()
+    {
+        await using var factory = new AccountingWebApplicationFactory();
+        var client = await IntegrationAuth.CreateAdminClientAsync(factory);
+        var seed = await SeedActiveBatchWithRowAsync(factory);
+        var otherEmployerId = await SeedEmployerOnlyAsync(factory);
+
+        var updateResp = await client.PutAsJsonAsync(
+            $"/api/payroll-monthly-inputs/rows/{seed.RowId}?employerId={otherEmployerId}",
+            new PayrollMonthlyInputRowEditDto { FullName = "Hacked Name" });
+
+        Assert.Equal(HttpStatusCode.NotFound, updateResp.StatusCode);
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<PayrollDbContext>();
+        var row = await db.PayrollMonthlyInputRows.FindAsync(seed.RowId);
+        Assert.Equal("Original Name", row!.FullName);
+    }
+
+    [Fact]
+    public async Task Rows_DeleteWithWrongEmployerId_Returns404AndDoesNotDeleteRow()
+    {
+        await using var factory = new AccountingWebApplicationFactory();
+        var client = await IntegrationAuth.CreateAdminClientAsync(factory);
+        var seed = await SeedActiveBatchWithRowAsync(factory);
+        var otherEmployerId = await SeedEmployerOnlyAsync(factory);
+
+        var deleteResp = await client.DeleteAsync(
+            $"/api/payroll-monthly-inputs/rows/{seed.RowId}?employerId={otherEmployerId}");
+
+        Assert.Equal(HttpStatusCode.NotFound, deleteResp.StatusCode);
+
+        var rows = await GetRowsAsync(client, seed.EmployerId, Month);
+        Assert.Contains(rows, r => r.Id == seed.RowId);
+        Assert.Equal("Original Name", rows.Single(r => r.Id == seed.RowId).FullName);
     }
 
     private static async Task<List<PayrollMonthlyInputRowDto>> GetRowsAsync(

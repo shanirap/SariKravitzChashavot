@@ -1,0 +1,9 @@
+{
+  "requiredStrings": [
+    "סוג_מוסד",
+    "מקטע_הורה_שעות_נוספות",
+    "IX_עובדים_מזהה_מעסיק_תז",
+    "20260621115616_RepairMissingProductionSchema",
+    "WHERE [IsDeleted] = 0"
+  ]
+}

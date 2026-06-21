@@ -1,7 +1,12 @@
 namespace AccountingProject.Domain
 {
+    using System.Globalization;
+
     public static class GradeOptions
     {
+        public const string UnifiedEducationSupportGradeName = "אחיד/תומכות חינוך";
+        public const string LegacyUnifiedGradeName = "אחיד";
+
         private static readonly string[] CoreGrades =
         [
             "ב",
@@ -9,6 +14,7 @@ namespace AccountingProject.Domain
             "גננת מוסמכת",
             "ד\"ר",
             "מ.א.",
+            "ב.א.",
             "מורה מוסמך"
         ];
 
@@ -36,7 +42,7 @@ namespace AccountingProject.Domain
         private static readonly Dictionary<string, string[]> OptionsByGradeName = new(StringComparer.Ordinal)
         {
             ["יסודי וגנים"] = CoreGrades,
-            ["אחיד"] = ["תומכת חינוך", "תומכת חינוך חנ\"מ"],
+            [UnifiedEducationSupportGradeName] = ["תומכת חינוך", "תומכת חינוך חנ\"מ"],
             ["עוז לתמורה"] = CoreGrades,
             ["אופק חדש"] = OfekGrades,
             ["אופק גנים"] = OfekGrades
@@ -45,7 +51,7 @@ namespace AccountingProject.Domain
         private static readonly Dictionary<string, string[]> RolesByGradeName = new(StringComparer.Ordinal)
         {
             ["יסודי וגנים"] = ["גננת ראשית", "גננת משלימה", "גננת שילוב", "מורה מחנך", "מורה מקצועי", "מנהל"],
-            ["אחיד"] = ["סייעת ראשית", "סייעת משלימה", "סייעת שניה"],
+            [UnifiedEducationSupportGradeName] = ["סייעת ראשית", "סייעת משלימה", "סייעת שניה"],
             ["עוז לתמורה"] = ["מורה מחנך", "מורה מקצועי", "מנהל"],
             ["אופק חדש"] = ["גננת ראשית", "גננת משלימה", "גננת שילוב", "מורה מחנך", "מורה מקצועי", "מנהל", "פרא רפואי"],
             ["אופק גנים"] = ["גננת ראשית", "גננת עמיתה", "פרא רפואי"]
@@ -56,8 +62,20 @@ namespace AccountingProject.Domain
 
         public static IReadOnlyList<string> GradeNames => OptionsByGradeName.Keys.ToArray();
 
+        public static string? NormalizeGradeName(string? gradeName)
+        {
+            if (string.IsNullOrWhiteSpace(gradeName))
+                return string.Empty;
+
+            var trimmed = gradeName.Trim();
+            return string.Equals(trimmed, LegacyUnifiedGradeName, StringComparison.Ordinal)
+                ? UnifiedEducationSupportGradeName
+                : trimmed;
+        }
+
         public static bool IsKnownGradeName(string? gradeName) =>
-            !string.IsNullOrWhiteSpace(gradeName) && OptionsByGradeName.ContainsKey(gradeName.Trim());
+            !string.IsNullOrWhiteSpace(gradeName)
+            && OptionsByGradeName.ContainsKey(NormalizeGradeName(gradeName)!);
 
         public static bool IsValidGrade(string? gradeName, string? grade)
         {
@@ -67,7 +85,7 @@ namespace AccountingProject.Domain
             if (string.IsNullOrWhiteSpace(gradeName))
                 return false;
 
-            return OptionsByGradeName.TryGetValue(gradeName.Trim(), out var grades)
+            return OptionsByGradeName.TryGetValue(NormalizeGradeName(gradeName)!, out var grades)
                    && grades.Contains(grade.Trim(), StringComparer.Ordinal);
         }
 
@@ -79,7 +97,7 @@ namespace AccountingProject.Domain
             if (string.IsNullOrWhiteSpace(gradeName))
                 return false;
 
-            return RolesByGradeName.TryGetValue(gradeName.Trim(), out var roles)
+            return RolesByGradeName.TryGetValue(NormalizeGradeName(gradeName)!, out var roles)
                    && roles.Contains(role.Trim(), StringComparer.Ordinal);
         }
 
@@ -88,7 +106,12 @@ namespace AccountingProject.Domain
             if (string.IsNullOrWhiteSpace(seniority))
                 return true;
 
-            return int.TryParse(seniority.Trim(), out var value) && value >= 0;
+            return decimal.TryParse(
+                       seniority.Trim(),
+                       NumberStyles.Number,
+                       CultureInfo.InvariantCulture,
+                       out var value)
+                   && value >= 0;
         }
 
         public static string? GetGradeBandValidationError(int band, string? gradeName, string? grade, string? role, string? seniority)
@@ -100,7 +123,7 @@ namespace AccountingProject.Domain
             if (!IsValidRole(gradeName, role))
                 return $"התפקיד בדרגה {band} אינו תואם לשם הדירוג.";
             if (!IsValidSeniority(seniority))
-                return $"ותק בדרגה {band} חייב להיות מספר שלם גדול או שווה ל-0.";
+                return $"ותק בדרגה {band} חייב להיות מספר גדול או שווה ל-0.";
             return null;
         }
     }

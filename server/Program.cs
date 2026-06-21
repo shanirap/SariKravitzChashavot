@@ -25,6 +25,8 @@ var jwtSigningKeyBytes = JwtSigningKey.GetKeyBytes(jwtKeyRaw);
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        // Must match JwtTokenService claim "role"; default inbound mapping rewrites it so RequireRole fails.
+        options.MapInboundClaims = false;
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -84,9 +86,11 @@ builder.Services.AddScoped<IUserManagementService, UserManagementService>();
 builder.Services.AddScoped<IEmployerService, EmployerService>();
 builder.Services.AddScoped<IEmployeeService, EmployeeService>();
 builder.Services.AddScoped<IEmploymentDataService, EmploymentDataService>();
+builder.Services.AddScoped<IEmploymentCalculationService, EmploymentCalculationService>();
 builder.Services.AddScoped<IBulkImportService, BulkImportService>();
 builder.Services.AddScoped<IComparisonReportService, ComparisonReportService>();
 builder.Services.AddScoped<IReportExportService, ReportExportService>();
+builder.Services.AddScoped<IAnnualComparisonSavedReportService, AnnualComparisonSavedReportService>();
 builder.Services.AddScoped<IPayrollMonthlyInputService, PayrollMonthlyInputService>();
 
 var app = builder.Build();

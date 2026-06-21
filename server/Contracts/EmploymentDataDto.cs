@@ -32,7 +32,7 @@ namespace AccountingProject.Contracts
         public string? Grade2Role { get; set; }
         public string? Grade2Seniority { get; set; }
 
-        public List<EmploymentDataSlotDto> Slots { get; set; } = new();
+        public List<EmploymentDataSlotDto>? Slots { get; set; }
     }
 
     public class EmploymentDataSlotDto

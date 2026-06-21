@@ -29,7 +29,8 @@ namespace AccountingProject.Services
                 query = query.Where(e =>
                     EF.Functions.Like(e.Name, pattern) ||
                     (e.BusinessNumber != null && EF.Functions.Like(e.BusinessNumber, pattern)) ||
-                    (e.BeneficiarySymbol != null && EF.Functions.Like(e.BeneficiarySymbol, pattern)));
+                    (e.BeneficiarySymbol != null && EF.Functions.Like(e.BeneficiarySymbol, pattern)) ||
+                    (e.EketzNumber != null && EF.Functions.Like(e.EketzNumber, pattern)));
             }
 
             var total = await query.CountAsync();
@@ -136,7 +137,13 @@ namespace AccountingProject.Services
             return (true, null);
         }
 
-        public async Task<PagedResult<Employee>> GetEmployeesAsync(int employerId, string? search, int page, int pageSize)
+        public async Task<PagedResult<Employee>> GetEmployeesAsync(
+            int employerId,
+            string? search,
+            int page,
+            int pageSize,
+            bool? isActive = null,
+            string? institutionSymbol = null)
         {
             page = Math.Max(page, 1);
             pageSize = Math.Clamp(pageSize, 1, 200);
@@ -154,6 +161,33 @@ namespace AccountingProject.Services
                     (e.LastName != null && EF.Functions.Like(e.LastName, pattern)) ||
                     EF.Functions.Like(e.IdNumber, pattern) ||
                     (e.EmployeeNumber != null && EF.Functions.Like(e.EmployeeNumber.ToString()!, pattern)));
+            }
+
+            if (isActive.HasValue)
+            {
+                if (isActive.Value)
+                {
+                    query = query.Where(e =>
+                        e.ManualActiveStatus == true
+                        || (e.ManualActiveStatus == null
+                            && e.EmploymentData.Any(ed => ed.EmployerId == employerId)));
+                }
+                else
+                {
+                    query = query.Where(e =>
+                        e.ManualActiveStatus == false
+                        || (e.ManualActiveStatus == null
+                            && !e.EmploymentData.Any(ed => ed.EmployerId == employerId)));
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(institutionSymbol))
+            {
+                var sym = institutionSymbol.Trim();
+                query = query.Where(e =>
+                    e.EmploymentData.Any(ed =>
+                        ed.EmployerId == employerId
+                        && ed.Slots.Any(s => s.InstitutionSymbol == sym)));
             }
 
             var total = await query.CountAsync();

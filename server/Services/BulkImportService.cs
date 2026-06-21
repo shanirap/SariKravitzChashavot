@@ -17,11 +17,16 @@ namespace AccountingProject.Services
         private static readonly string[] RequiredEmployerHeaders = ["חפ"];
 
         private readonly PayrollDbContext _db;
+        private readonly IEmploymentCalculationService _calculations;
         private readonly ILogger<BulkImportService> _logger;
 
-        public BulkImportService(PayrollDbContext db, ILogger<BulkImportService> logger)
+        public BulkImportService(
+            PayrollDbContext db,
+            IEmploymentCalculationService calculations,
+            ILogger<BulkImportService> logger)
         {
             _db = db;
+            _calculations = calculations;
             _logger = logger;
         }
 
@@ -65,170 +70,26 @@ namespace AccountingProject.Services
                         return v ?? GetNum(legacyKey);
                     }
 
-                    rowResult.IdNumber = Get("תז");
-                    rowResult.EmployerName = fixedEmployer?.Name ?? Get("שם_מעסיק");
-                    var firstName = Normalize(Get("שם_פרטי"));
-                    var lastName = Normalize(Get("שם_משפחה"));
-                    var gender = Normalize(Get("מין"));
-                    var birthDateText = Get("תאריך_לידה");
+                    var plan = ParseEmployeeImportRow(
+                        Get, GetNum, GetNumOrLegacy, headers, row, fixedEmployer?.Name, rowResult);
+                    await ValidateEmployeeImportRowAsync(
+                        plan,
+                        fixedEmployer,
+                        localEmploymentKeys,
+                        localEmployeesByEmployerAndTz);
 
-                    if (string.IsNullOrWhiteSpace(rowResult.IdNumber))
-                        throw new InvalidOperationException("שורה דולגה — תז ריק.");
-                    if (string.IsNullOrWhiteSpace(lastName))
-                        throw new InvalidOperationException("שורה דולגה — שם_משפחה ריק.");
-                    if (string.IsNullOrWhiteSpace(firstName))
-                        throw new InvalidOperationException("שורה דולגה — שם_פרטי ריק.");
-                    if (string.IsNullOrWhiteSpace(gender))
-                        throw new InvalidOperationException("שורה דולגה — מין ריק.");
-                    if (string.IsNullOrWhiteSpace(birthDateText))
-                        throw new InvalidOperationException("שורה דולגה — תאריך_לידה ריק.");
-                    if (!DateOnly.TryParse(birthDateText, out var birthDate))
-                        throw new InvalidOperationException("תאריך_לידה לא תקין.");
-                    if (string.IsNullOrWhiteSpace(rowResult.EmployerName))
-                        throw new InvalidOperationException("שורה דולגה — שם_מעסיק ריק.");
-
-                    var academicYear = HebrewAcademicYear.Normalize(Get("שנת_לימודים"));
-                    if (academicYear == null)
-                        throw new InvalidOperationException("שנת_לימודים חסרה או לא תקינה. יש להזין שנה עברית, למשל תשפ\"ו.");
-
-                    var employer = fixedEmployer ?? await _db.Employers.FirstOrDefaultAsync(e => e.Name == rowResult.EmployerName);
-                    if (employer == null)
-                        throw new InvalidOperationException($"המעסיק \"{rowResult.EmployerName}\" לא נמצא במערכת.");
-
-                    var employeeKey = (employer.Id, rowResult.IdNumber);
-                    Employee? employee;
-                    if (localEmployeesByEmployerAndTz.TryGetValue(employeeKey, out var cachedEmployee))
-                    {
-                        employee = cachedEmployee;
-                    }
-                    else
-                    {
-                        employee = await _db.Employees.FirstOrDefaultAsync(e =>
-                            e.EmployerId == employer.Id && e.IdNumber == rowResult.IdNumber);
-                        if (employee != null)
-                            localEmployeesByEmployerAndTz[employeeKey] = employee;
-                    }
-                    var allowedInstitutionSymbols = await GetInstitutionSymbolValuesAsync(employer);
-
-                    if (employee == null)
-                    {
-                        employee = await _db.Employees.IgnoreQueryFilters()
-                            .Where(e => e.EmployerId == employer.Id && e.IdNumber == rowResult.IdNumber && e.IsDeleted)
-                            .OrderBy(e => e.Id)
-                            .FirstOrDefaultAsync();
-                        if (employee != null)
-                        {
-                            employee.IsDeleted = false;
-                            employee.DeletedAtUtc = null;
-                        }
-                        else
-                        {
-                            employee = new Employee
-                            {
-                                EmployerId = employer.Id,
-                                IdNumber = rowResult.IdNumber,
-                            };
-                            _db.Employees.Add(employee);
-                        }
-
-                        localEmployeesByEmployerAndTz[employeeKey] = employee;
-                    }
-
-                    ApplyEmployeePersonalFields(employee, Get, firstName, lastName, gender, birthDate);
-
-                    var employmentKey = (rowResult.IdNumber, employer.Id, academicYear);
-                    if (localEmploymentKeys.Contains(employmentKey))
-                        throw new InvalidOperationException($"כבר קיימת בקובץ רשומה לעובד זה, מעסיק זה ושנת הלימודים {academicYear}.");
-
-                    if (await _db.EmploymentData.AnyAsync(ed =>
-                            ed.EmployeeId == employee.Id
-                            && ed.EmployerId == employer.Id
-                            && ed.AcademicYear == academicYear))
-                        throw new InvalidOperationException($"כבר קיימת רשומה לעובד זה, מעסיק זה ושנת הלימודים {academicYear}.");
-
-                    if (employee.EmployerId != employer.Id)
-                        throw new InvalidOperationException("רשומת העובד אינה משויכת למעסיק של שורת הייבוא.");
-
-                    string? BandField(int g, string suffix)
-                    {
-                        var direct = $"דרגה{g}_{suffix}";
-                        if (headers.ContainsKey(direct))
-                            return Normalize(Get(direct));
-                        for (var si = 1; si <= 6; si++)
-                        {
-                            var legacy = $"דרגה{g}_{si}_{suffix}";
-                            if (!headers.ContainsKey(legacy)) continue;
-                            var v = Normalize(Get(legacy));
-                            if (!string.IsNullOrWhiteSpace(v)) return v;
-                        }
-
-                        return null;
-                    }
-
-                    var ed = new EmploymentData
-                    {
-                        Employee = employee,
-                        EmployerId = employer.Id,
-                        AcademicYear = academicYear,
-                        Grade1Total = GetNum("דרגה1_סהכ"),
-                        Grade1JobPercent = GetNum("דרגה1_אחוז_משרה"),
-                        Grade1TrainingFundPercent = GetNum("דרגה1_קרן_השתלמות_אחוז"),
-                        Grade1AgeHours = GetNum("דרגה1_שעות_גיל"),
-                        Grade1MotherBenefitPercent = IsFemaleGender(employee.Gender) ? GetNum("דרגה1_אחוז_תוספת_אם") : 0m,
-                        Grade1TrainingBenefits = GetNumOrLegacy("דרגה1_גמולי_השתלמות", "גמולי_השתלמות"),
-                        Grade1DoubleDegree = GetNumOrLegacy("דרגה1_כפל_תואר", "כפל_תואר"),
-                        Grade2Total = GetNum("דרגה2_סהכ"),
-                        Grade2JobPercent = GetNum("דרגה2_אחוז_משרה"),
-                        Grade2TrainingFundPercent = GetNum("דרגה2_קרן_השתלמות_אחוז"),
-                        Grade2AgeHours = GetNum("דרגה2_שעות_גיל"),
-                        Grade2MotherBenefitPercent = IsFemaleGender(employee.Gender) ? GetNum("דרגה2_אחוז_תוספת_אם") : 0m,
-                        Grade2TrainingBenefits = GetNum("דרגה2_גמולי_השתלמות"),
-                        Grade2DoubleDegree = GetNum("דרגה2_כפל_תואר"),
-                        Grade1GradeName = BandField(1, "שם_הדירוג"),
-                        Grade1Grade = BandField(1, "דרגה"),
-                        Grade1Role = BandField(1, "תפקיד"),
-                        Grade1Seniority = BandField(1, "ותק"),
-                        Grade2GradeName = BandField(2, "שם_הדירוג"),
-                        Grade2Grade = BandField(2, "דרגה"),
-                        Grade2Role = BandField(2, "תפקיד"),
-                        Grade2Seniority = BandField(2, "ותק")
-                    };
-                    ValidateBandRank(1, ed.Grade1GradeName, ed.Grade1Grade, ed.Grade1Role, ed.Grade1Seniority);
-                    ValidateBandRank(2, ed.Grade2GradeName, ed.Grade2Grade, ed.Grade2Role, ed.Grade2Seniority);
-
-                    for (int g = 1; g <= 2; g++)
-                    for (int s = 1; s <= 6; s++)
-                    {
-                        string K(string p) => $"דרגה{g}_{s}_{p}";
-                        var institutionSymbol = Normalize(Get(K("סמל_מוסד")));
-                        ValidateSlotInstitution(g, s, institutionSymbol, allowedInstitutionSymbols);
-
-                        var slot = new EmploymentDataSlot
-                        {
-                            GradeBand = (byte)g,
-                            SlotIndex = (byte)s,
-                            InstitutionSymbol = institutionSymbol,
-                            WeeklyHours = GetNum(K("שעות_שבועיות")),
-                            // עמודת האקסל: בסיס גולמי; נשמר ב־DB כנטו (פחות שעות גיל מהכותרת דרגה1/2).
-                            JobBase = EmploymentJobBaseAdjustments.NetJobBaseAfterAgeHours(
-                                GetNum(K("בסיס_משרה")),
-                                g == 1 ? ed.Grade1AgeHours : ed.Grade2AgeHours)
-                        };
-                        if (EmploymentSlotPersistence.ShouldPersistSlot(slot))
-                            ed.Slots.Add(slot);
-                    }
-                    _db.EmploymentData.Add(ed);
-                    localEmploymentKeys.Add(employmentKey);
+                    RecalculateEmploymentImportPlan(plan);
+                    ApplyEmployeeImportRow(plan, localEmployeesByEmployerAndTz, localEmploymentKeys);
                     pendingSuccessfulRows++;
-                    if (pendingSuccessfulRows >= 100)
-                    {
-                        await _db.SaveChangesAsync();
-                        pendingSuccessfulRows = 0;
-                    }
+                        if (pendingSuccessfulRows >= 100)
+                        {
+                            await _db.SaveChangesAsync();
+                            pendingSuccessfulRows = 0;
+                        }
 
-                    rowResult.Success = true;
-                    rowResult.Message = "יובא בהצלחה.";
-                    result.Imported++;
+                        rowResult.Success = true;
+                        rowResult.Message = "יובא בהצלחה.";
+                        result.Imported++;
                 }
                 catch (InvalidOperationException ex)
                 {
@@ -365,13 +226,16 @@ namespace AccountingProject.Services
         {
             var cols = new List<string>
             {
-                "תז", "מספר_עובד_בעוקץ", "שם_פרטי", "שם_משפחה", "מין", "תאריך_לידה", "טל",
+                "תז", "מספר_עובד_בעוקץ", "שם_משפחה", "שם_פרטי", "מין", "תאריך_לידה", "טל",
                 "תאריך_לידה_ילד_1", "תאריך_לידה_ילד_2", "תאריך_לידה_ילד_3", "תאריך_לידה_ילד_4", "תאריך_לידה_ילד_5",
                 "תאריך_לידה_ילד_6", "תאריך_לידה_ילד_7", "תאריך_לידה_ילד_8", "תאריך_לידה_ילד_9", "תאריך_לידה_ילד_10",
                 "שנת_לימודים"
             };
             if (includeEmployerName)
+            {
                 cols.Insert(0, "שם_מעסיק");
+                cols.Insert(1, "חפ");
+            }
             for (var g = 1; g <= 2; g++)
             {
                 cols.Add($"דרגה{g}_שם_הדירוג");
@@ -560,7 +424,7 @@ namespace AccountingProject.Services
                     var seniorityAddress = worksheet.Cell(firstDataRow, seniorityColumn).Address.ToStringRelative();
                     worksheet.Range(firstDataRow, seniorityColumn, lastDataRow, seniorityColumn)
                         .CreateDataValidation()
-                        .Custom($"=OR({seniorityAddress}=\"\",AND(ISNUMBER({seniorityAddress}),INT({seniorityAddress})={seniorityAddress},{seniorityAddress}>=0))");
+                        .Custom($"=OR({seniorityAddress}=\"\",AND(ISNUMBER({seniorityAddress}),{seniorityAddress}>=0))");
                 }
 
                 for (var s = 1; s <= 6; s++)
@@ -612,12 +476,21 @@ namespace AccountingProject.Services
                 || string.Equals(g, "female", StringComparison.OrdinalIgnoreCase);
         }
 
-        private static DateOnly? ParseDate(string? value) =>
-            DateOnly.TryParse(value, out var date) ? date : null;
+        private static DateOnly? ParseOptionalDate(Dictionary<string, int> headers, IXLRow row, string key)
+        {
+            if (!headers.TryGetValue(key, out var col))
+                return null;
+            var cell = row.Cell(col);
+            if (cell.IsEmpty() || string.IsNullOrWhiteSpace(ExcelCellText.Get(cell).Trim()))
+                return null;
+            return ExcelDateParser.TryParse(cell, out var date) ? date : null;
+        }
 
         private static void ApplyEmployeePersonalFields(
             Employee employee,
             Func<string, string> get,
+            Dictionary<string, int> headers,
+            IXLRow row,
             string firstName,
             string lastName,
             string gender,
@@ -629,16 +502,16 @@ namespace AccountingProject.Services
             employee.BirthDate = birthDate;
             employee.Phone = Normalize(get("טל"));
             employee.EmployeeNumber = ParseOptionalEmployeeNumber(get);
-            employee.ChildBirthDate1 = ParseDate(get("תאריך_לידה_ילד_1"));
-            employee.ChildBirthDate2 = ParseDate(get("תאריך_לידה_ילד_2"));
-            employee.ChildBirthDate3 = ParseDate(get("תאריך_לידה_ילד_3"));
-            employee.ChildBirthDate4 = ParseDate(get("תאריך_לידה_ילד_4"));
-            employee.ChildBirthDate5 = ParseDate(get("תאריך_לידה_ילד_5"));
-            employee.ChildBirthDate6 = ParseDate(get("תאריך_לידה_ילד_6"));
-            employee.ChildBirthDate7 = ParseDate(get("תאריך_לידה_ילד_7"));
-            employee.ChildBirthDate8 = ParseDate(get("תאריך_לידה_ילד_8"));
-            employee.ChildBirthDate9 = ParseDate(get("תאריך_לידה_ילד_9"));
-            employee.ChildBirthDate10 = ParseDate(get("תאריך_לידה_ילד_10"));
+            employee.ChildBirthDate1 = ParseOptionalDate(headers, row, "תאריך_לידה_ילד_1");
+            employee.ChildBirthDate2 = ParseOptionalDate(headers, row, "תאריך_לידה_ילד_2");
+            employee.ChildBirthDate3 = ParseOptionalDate(headers, row, "תאריך_לידה_ילד_3");
+            employee.ChildBirthDate4 = ParseOptionalDate(headers, row, "תאריך_לידה_ילד_4");
+            employee.ChildBirthDate5 = ParseOptionalDate(headers, row, "תאריך_לידה_ילד_5");
+            employee.ChildBirthDate6 = ParseOptionalDate(headers, row, "תאריך_לידה_ילד_6");
+            employee.ChildBirthDate7 = ParseOptionalDate(headers, row, "תאריך_לידה_ילד_7");
+            employee.ChildBirthDate8 = ParseOptionalDate(headers, row, "תאריך_לידה_ילד_8");
+            employee.ChildBirthDate9 = ParseOptionalDate(headers, row, "תאריך_לידה_ילד_9");
+            employee.ChildBirthDate10 = ParseOptionalDate(headers, row, "תאריך_לידה_ילד_10");
         }
 
         private static int? ParseOptionalEmployeeNumber(Func<string, string> get)
@@ -664,6 +537,463 @@ namespace AccountingProject.Services
 
             return string.Empty;
         }
+
+        private async Task<Employer> ResolveEmployerForImportRowAsync(string employerName, string? businessNumber)
+        {
+            var bn = Normalize(businessNumber);
+            if (!string.IsNullOrWhiteSpace(bn))
+            {
+                var byBn = await _db.Employers
+                    .Where(e => e.BusinessNumber == bn)
+                    .ToListAsync();
+                if (byBn.Count == 0)
+                    throw new InvalidOperationException($"מעסיק עם ח.פ. {bn} לא נמצא במערכת.");
+                if (byBn.Count > 1)
+                    throw new InvalidOperationException($"ח.פ. {bn} משויך ליותר ממעסיק אחד — יש לפנות למנהל המערכת.");
+                return byBn[0];
+            }
+
+            var name = Normalize(employerName);
+            if (string.IsNullOrWhiteSpace(name))
+                throw new InvalidOperationException("שורה דולגה — שם_מעסיק או ח.פ. נדרש.");
+
+            var matches = await _db.Employers.Where(e => e.Name == name).ToListAsync();
+            if (matches.Count == 0)
+                throw new InvalidOperationException($"המעסיק \"{name}\" לא נמצא במערכת.");
+            if (matches.Count > 1)
+                throw new InvalidOperationException(
+                    $"שם המעסיק \"{name}\" אינו ייחודי — יש להזין ח.פ. בעמודת \"חפ\" לזיהוי המעסיק.");
+
+            return matches[0];
+        }
+
+        private sealed class EmployeeImportRowPlan
+        {
+            public required string IdNumber { get; init; }
+            public required string EmployerName { get; init; }
+            public string? EmployerBusinessNumber { get; init; }
+            public required string FirstName { get; init; }
+            public required string LastName { get; init; }
+            public required string Gender { get; init; }
+            public required DateOnly BirthDate { get; init; }
+            public required string AcademicYear { get; init; }
+            public int? EmployeeNumber { get; init; }
+            public string? Phone { get; init; }
+            public DateOnly? ChildBirthDate1 { get; init; }
+            public DateOnly? ChildBirthDate2 { get; init; }
+            public DateOnly? ChildBirthDate3 { get; init; }
+            public DateOnly? ChildBirthDate4 { get; init; }
+            public DateOnly? ChildBirthDate5 { get; init; }
+            public DateOnly? ChildBirthDate6 { get; init; }
+            public DateOnly? ChildBirthDate7 { get; init; }
+            public DateOnly? ChildBirthDate8 { get; init; }
+            public DateOnly? ChildBirthDate9 { get; init; }
+            public DateOnly? ChildBirthDate10 { get; init; }
+            public Employer Employer { get; set; } = null!;
+            public Employee? ExistingEmployee { get; set; }
+            public required ParsedEmploymentPlan Employment { get; init; }
+        }
+
+        private sealed class ParsedEmploymentPlan
+        {
+            public decimal? Grade1Total { get; set; }
+            public decimal? Grade1JobPercent { get; set; }
+            public decimal? Grade1TrainingFundPercent { get; set; }
+            public decimal? Grade1AgeHours { get; set; }
+            public decimal? Grade1MotherBenefitPercent { get; set; }
+            public decimal? Grade1TrainingBenefits { get; init; }
+            public decimal? Grade1DoubleDegree { get; init; }
+            public decimal? Grade2Total { get; set; }
+            public decimal? Grade2JobPercent { get; set; }
+            public decimal? Grade2TrainingFundPercent { get; set; }
+            public decimal? Grade2AgeHours { get; set; }
+            public decimal? Grade2MotherBenefitPercent { get; set; }
+            public decimal? Grade2TrainingBenefits { get; init; }
+            public decimal? Grade2DoubleDegree { get; init; }
+            public string? Grade1GradeName { get; init; }
+            public string? Grade1Grade { get; init; }
+            public string? Grade1Role { get; init; }
+            public string? Grade1Seniority { get; init; }
+            public string? Grade2GradeName { get; init; }
+            public string? Grade2Grade { get; init; }
+            public string? Grade2Role { get; init; }
+            public string? Grade2Seniority { get; init; }
+            public List<ParsedEmploymentSlotPlan> Slots { get; } = [];
+        }
+
+        private sealed class ParsedEmploymentSlotPlan
+        {
+            public byte GradeBand { get; init; }
+            public byte SlotIndex { get; init; }
+            public string? InstitutionSymbol { get; set; }
+            public decimal? WeeklyHours { get; set; }
+            public decimal? JobBase { get; set; }
+            public byte? SupplementaryParentSlotIndex { get; set; }
+        }
+
+        private EmployeeImportRowPlan ParseEmployeeImportRow(
+            Func<string, string> get,
+            Func<string, decimal?> getNum,
+            Func<string, string, decimal?> getNumOrLegacy,
+            Dictionary<string, int> headers,
+            IXLRow row,
+            string? fixedEmployerName,
+            ImportRowResult rowResult)
+        {
+            rowResult.IdNumber = get("תז");
+            rowResult.EmployerName = fixedEmployerName ?? get("שם_מעסיק");
+            var firstName = Normalize(get("שם_פרטי"));
+            var lastName = Normalize(get("שם_משפחה"));
+            var gender = Normalize(get("מין"));
+            var birthCell = row.Cell(headers["תאריך_לידה"]);
+
+            if (string.IsNullOrWhiteSpace(rowResult.IdNumber))
+                throw new InvalidOperationException("שורה דולגה — תז ריק.");
+            if (string.IsNullOrWhiteSpace(lastName))
+                throw new InvalidOperationException("שורה דולגה — שם_משפחה ריק.");
+            if (string.IsNullOrWhiteSpace(firstName))
+                throw new InvalidOperationException("שורה דולגה — שם_פרטי ריק.");
+            if (string.IsNullOrWhiteSpace(gender))
+                throw new InvalidOperationException("שורה דולגה — מין ריק.");
+            if (birthCell.IsEmpty() || string.IsNullOrWhiteSpace(ExcelCellText.Get(birthCell).Trim()))
+                throw new InvalidOperationException("שורה דולגה — תאריך_לידה ריק.");
+            if (!ExcelDateParser.TryParse(birthCell, out var birthDate))
+                throw new InvalidOperationException("תאריך_לידה לא תקין.");
+
+            var employerBusinessNumber = Normalize(get("חפ"));
+            if (string.IsNullOrWhiteSpace(rowResult.EmployerName) && string.IsNullOrWhiteSpace(employerBusinessNumber))
+                throw new InvalidOperationException("שורה דולגה — שם_מעסיק או ח.פ. נדרש.");
+
+            if (!HebrewAcademicYear.TryValidateAndCanonicalize(get("שנת_לימודים"), out var academicYear))
+                throw new InvalidOperationException("שנת_לימודים חסרה או לא תקינה. יש להזין שנה עברית, למשל תשפ\"ו.");
+
+            var employeeNumber = ParseOptionalEmployeeNumber(get);
+
+            string? BandField(int g, string suffix)
+            {
+                var direct = $"דרגה{g}_{suffix}";
+                if (headers.ContainsKey(direct))
+                    return Normalize(get(direct));
+                for (var si = 1; si <= 6; si++)
+                {
+                    var legacy = $"דרגה{g}_{si}_{suffix}";
+                    if (!headers.ContainsKey(legacy)) continue;
+                    var v = Normalize(get(legacy));
+                    if (!string.IsNullOrWhiteSpace(v)) return v;
+                }
+
+                return null;
+            }
+
+            var employment = new ParsedEmploymentPlan
+            {
+                Grade1AgeHours = getNum("דרגה1_שעות_גיל"),
+                Grade1TrainingBenefits = getNumOrLegacy("דרגה1_גמולי_השתלמות", "גמולי_השתלמות"),
+                Grade1DoubleDegree = getNumOrLegacy("דרגה1_כפל_תואר", "כפל_תואר"),
+                Grade2AgeHours = getNum("דרגה2_שעות_גיל"),
+                Grade2TrainingBenefits = getNum("דרגה2_גמולי_השתלמות"),
+                Grade2DoubleDegree = getNum("דרגה2_כפל_תואר"),
+                Grade1GradeName = GradeOptions.NormalizeGradeName(BandField(1, "שם_הדירוג")),
+                Grade1Grade = BandField(1, "דרגה"),
+                Grade1Role = BandField(1, "תפקיד"),
+                Grade1Seniority = BandField(1, "ותק"),
+                Grade2GradeName = GradeOptions.NormalizeGradeName(BandField(2, "שם_הדירוג")),
+                Grade2Grade = BandField(2, "דרגה"),
+                Grade2Role = BandField(2, "תפקיד"),
+                Grade2Seniority = BandField(2, "ותק"),
+            };
+
+            ValidateBandRank(1, employment.Grade1GradeName, employment.Grade1Grade, employment.Grade1Role, employment.Grade1Seniority);
+            ValidateBandRank(2, employment.Grade2GradeName, employment.Grade2Grade, employment.Grade2Role, employment.Grade2Seniority);
+
+            for (var g = 1; g <= 2; g++)
+            for (var s = 1; s <= 6; s++)
+            {
+                string K(string p) => $"דרגה{g}_{s}_{p}";
+                employment.Slots.Add(new ParsedEmploymentSlotPlan
+                {
+                    GradeBand = (byte)g,
+                    SlotIndex = (byte)s,
+                    InstitutionSymbol = Normalize(get(K("סמל_מוסד"))),
+                    WeeklyHours = getNum(K("שעות_שבועיות")),
+                    JobBase = getNum(K("בסיס_משרה")),
+                });
+            }
+
+            return new EmployeeImportRowPlan
+            {
+                IdNumber = rowResult.IdNumber,
+                EmployerName = rowResult.EmployerName,
+                EmployerBusinessNumber = employerBusinessNumber,
+                FirstName = firstName!,
+                LastName = lastName!,
+                Gender = gender!,
+                BirthDate = birthDate,
+                AcademicYear = academicYear,
+                EmployeeNumber = employeeNumber,
+                Phone = Normalize(get("טל")),
+                ChildBirthDate1 = ParseOptionalDate(headers, row, "תאריך_לידה_ילד_1"),
+                ChildBirthDate2 = ParseOptionalDate(headers, row, "תאריך_לידה_ילד_2"),
+                ChildBirthDate3 = ParseOptionalDate(headers, row, "תאריך_לידה_ילד_3"),
+                ChildBirthDate4 = ParseOptionalDate(headers, row, "תאריך_לידה_ילד_4"),
+                ChildBirthDate5 = ParseOptionalDate(headers, row, "תאריך_לידה_ילד_5"),
+                ChildBirthDate6 = ParseOptionalDate(headers, row, "תאריך_לידה_ילד_6"),
+                ChildBirthDate7 = ParseOptionalDate(headers, row, "תאריך_לידה_ילד_7"),
+                ChildBirthDate8 = ParseOptionalDate(headers, row, "תאריך_לידה_ילד_8"),
+                ChildBirthDate9 = ParseOptionalDate(headers, row, "תאריך_לידה_ילד_9"),
+                ChildBirthDate10 = ParseOptionalDate(headers, row, "תאריך_לידה_ילד_10"),
+                Employment = employment,
+            };
+        }
+
+        private async Task ValidateEmployeeImportRowAsync(
+            EmployeeImportRowPlan plan,
+            Employer? fixedEmployer,
+            HashSet<(string IdNumber, int EmployerId, string AcademicYear)> localEmploymentKeys,
+            Dictionary<(int EmployerId, string IdNumber), Employee> localEmployeesByEmployerAndTz)
+        {
+            plan.Employer = fixedEmployer ?? await ResolveEmployerForImportRowAsync(plan.EmployerName, plan.EmployerBusinessNumber);
+
+            var allowedInstitutionSymbols = await GetInstitutionSymbolValuesAsync(plan.Employer);
+            foreach (var slot in plan.Employment.Slots)
+            {
+                ValidateSlotInstitution(
+                    slot.GradeBand,
+                    slot.SlotIndex,
+                    slot.InstitutionSymbol,
+                    allowedInstitutionSymbols);
+            }
+
+            var employmentKey = (plan.IdNumber, plan.Employer.Id, plan.AcademicYear);
+            if (localEmploymentKeys.Contains(employmentKey))
+                throw new InvalidOperationException($"כבר קיימת בקובץ רשומה לעובד זה, מעסיק זה ושנת הלימודים {plan.AcademicYear}.");
+
+            var employeeKey = (plan.Employer.Id, plan.IdNumber);
+            if (localEmployeesByEmployerAndTz.TryGetValue(employeeKey, out var cachedEmployee))
+            {
+                plan.ExistingEmployee = cachedEmployee;
+            }
+            else
+            {
+                plan.ExistingEmployee = await _db.Employees.FirstOrDefaultAsync(e =>
+                    e.EmployerId == plan.Employer.Id && e.IdNumber == plan.IdNumber);
+                if (plan.ExistingEmployee == null)
+                {
+                    plan.ExistingEmployee = await _db.Employees.IgnoreQueryFilters()
+                        .Where(e => e.EmployerId == plan.Employer.Id && e.IdNumber == plan.IdNumber && e.IsDeleted)
+                        .OrderBy(e => e.Id)
+                        .FirstOrDefaultAsync();
+                }
+            }
+
+            if (plan.ExistingEmployee != null)
+            {
+                if (plan.ExistingEmployee.EmployerId != plan.Employer.Id)
+                    throw new InvalidOperationException("רשומת העובד אינה משויכת למעסיק של שורת הייבוא.");
+
+                if (plan.ExistingEmployee.Id > 0
+                    && await _db.EmploymentData.AnyAsync(ed =>
+                        ed.EmployeeId == plan.ExistingEmployee.Id
+                        && ed.EmployerId == plan.Employer.Id
+                        && ed.AcademicYear == plan.AcademicYear))
+                {
+                    throw new InvalidOperationException(
+                        $"כבר קיימת רשומה לעובד זה, מעסיק זה ושנת הלימודים {plan.AcademicYear}.");
+                }
+            }
+        }
+
+        private void ApplyEmployeeImportRow(
+            EmployeeImportRowPlan plan,
+            Dictionary<(int EmployerId, string IdNumber), Employee> localEmployeesByEmployerAndTz,
+            HashSet<(string IdNumber, int EmployerId, string AcademicYear)> localEmploymentKeys)
+        {
+            var employeeKey = (plan.Employer.Id, plan.IdNumber);
+            Employee employee;
+            if (plan.ExistingEmployee != null)
+            {
+                employee = plan.ExistingEmployee;
+                if (employee.IsDeleted)
+                {
+                    employee.IsDeleted = false;
+                    employee.DeletedAtUtc = null;
+                }
+            }
+            else if (localEmployeesByEmployerAndTz.TryGetValue(employeeKey, out var cachedEmployee))
+            {
+                employee = cachedEmployee;
+            }
+            else
+            {
+                employee = _db.Employees.Local.FirstOrDefault(e =>
+                    e.EmployerId == plan.Employer.Id && e.IdNumber == plan.IdNumber && e.Id == 0);
+                if (employee == null)
+                {
+                    employee = new Employee
+                    {
+                        EmployerId = plan.Employer.Id,
+                        IdNumber = plan.IdNumber,
+                    };
+                    _db.Employees.Add(employee);
+                }
+
+                localEmployeesByEmployerAndTz[employeeKey] = employee;
+            }
+
+            employee.FirstName = plan.FirstName;
+            employee.LastName = plan.LastName;
+            employee.Gender = plan.Gender;
+            employee.BirthDate = plan.BirthDate;
+            employee.Phone = plan.Phone;
+            employee.EmployeeNumber = plan.EmployeeNumber;
+            employee.ChildBirthDate1 = plan.ChildBirthDate1;
+            employee.ChildBirthDate2 = plan.ChildBirthDate2;
+            employee.ChildBirthDate3 = plan.ChildBirthDate3;
+            employee.ChildBirthDate4 = plan.ChildBirthDate4;
+            employee.ChildBirthDate5 = plan.ChildBirthDate5;
+            employee.ChildBirthDate6 = plan.ChildBirthDate6;
+            employee.ChildBirthDate7 = plan.ChildBirthDate7;
+            employee.ChildBirthDate8 = plan.ChildBirthDate8;
+            employee.ChildBirthDate9 = plan.ChildBirthDate9;
+            employee.ChildBirthDate10 = plan.ChildBirthDate10;
+            localEmployeesByEmployerAndTz[employeeKey] = employee;
+
+            var ed = new EmploymentData
+            {
+                Employee = employee,
+                EmployerId = plan.Employer.Id,
+                AcademicYear = plan.AcademicYear,
+                Grade1Total = plan.Employment.Grade1Total,
+                Grade1JobPercent = plan.Employment.Grade1JobPercent,
+                Grade1TrainingFundPercent = plan.Employment.Grade1TrainingFundPercent,
+                Grade1AgeHours = plan.Employment.Grade1AgeHours,
+                Grade1MotherBenefitPercent = plan.Employment.Grade1MotherBenefitPercent,
+                Grade1TrainingBenefits = plan.Employment.Grade1TrainingBenefits,
+                Grade1DoubleDegree = plan.Employment.Grade1DoubleDegree,
+                Grade2Total = plan.Employment.Grade2Total,
+                Grade2JobPercent = plan.Employment.Grade2JobPercent,
+                Grade2TrainingFundPercent = plan.Employment.Grade2TrainingFundPercent,
+                Grade2AgeHours = plan.Employment.Grade2AgeHours,
+                Grade2MotherBenefitPercent = plan.Employment.Grade2MotherBenefitPercent,
+                Grade2TrainingBenefits = plan.Employment.Grade2TrainingBenefits,
+                Grade2DoubleDegree = plan.Employment.Grade2DoubleDegree,
+                Grade1GradeName = plan.Employment.Grade1GradeName,
+                Grade1Grade = plan.Employment.Grade1Grade,
+                Grade1Role = plan.Employment.Grade1Role,
+                Grade1Seniority = plan.Employment.Grade1Seniority,
+                Grade2GradeName = plan.Employment.Grade2GradeName,
+                Grade2Grade = plan.Employment.Grade2Grade,
+                Grade2Role = plan.Employment.Grade2Role,
+                Grade2Seniority = plan.Employment.Grade2Seniority,
+            };
+
+            foreach (var slotPlan in plan.Employment.Slots)
+            {
+                var slot = new EmploymentDataSlot
+                {
+                    GradeBand = slotPlan.GradeBand,
+                    SlotIndex = slotPlan.SlotIndex,
+                    InstitutionSymbol = slotPlan.InstitutionSymbol,
+                    WeeklyHours = slotPlan.WeeklyHours,
+                    JobBase = slotPlan.JobBase,
+                    SupplementaryParentSlotIndex = slotPlan.SupplementaryParentSlotIndex,
+                };
+                if (EmploymentSlotPersistence.ShouldPersistSlot(slot))
+                    ed.Slots.Add(slot);
+            }
+
+            _db.EmploymentData.Add(ed);
+            localEmploymentKeys.Add((plan.IdNumber, plan.Employer.Id, plan.AcademicYear));
+        }
+
+        private void RecalculateEmploymentImportPlan(EmployeeImportRowPlan plan)
+        {
+            var dto = ToEmploymentDataDto(plan);
+            _calculations.PrepareForSave(
+                dto,
+                plan.BirthDate,
+                IsFemaleGender(plan.Gender),
+                GetChildBirthDates(plan));
+            ApplyCalculatedValues(plan.Employment, dto);
+        }
+
+        private static EmploymentDataDto ToEmploymentDataDto(EmployeeImportRowPlan plan)
+        {
+            var employment = plan.Employment;
+            return new EmploymentDataDto
+            {
+                AcademicYear = plan.AcademicYear,
+                Grade1AgeHours = employment.Grade1AgeHours,
+                Grade1TrainingBenefits = employment.Grade1TrainingBenefits,
+                Grade1DoubleDegree = employment.Grade1DoubleDegree,
+                Grade2AgeHours = employment.Grade2AgeHours,
+                Grade2TrainingBenefits = employment.Grade2TrainingBenefits,
+                Grade2DoubleDegree = employment.Grade2DoubleDegree,
+                Grade1GradeName = employment.Grade1GradeName,
+                Grade1Grade = employment.Grade1Grade,
+                Grade1Role = employment.Grade1Role,
+                Grade1Seniority = employment.Grade1Seniority,
+                Grade2GradeName = employment.Grade2GradeName,
+                Grade2Grade = employment.Grade2Grade,
+                Grade2Role = employment.Grade2Role,
+                Grade2Seniority = employment.Grade2Seniority,
+                Slots = employment.Slots
+                    .Select(s => new EmploymentDataSlotDto
+                    {
+                        GradeBand = s.GradeBand,
+                        SlotIndex = s.SlotIndex,
+                        InstitutionSymbol = s.InstitutionSymbol,
+                        WeeklyHours = s.WeeklyHours,
+                        JobBase = s.JobBase,
+                        SupplementaryParentSlotIndex = s.SupplementaryParentSlotIndex,
+                    })
+                    .ToList(),
+            };
+        }
+
+        private static void ApplyCalculatedValues(ParsedEmploymentPlan employment, EmploymentDataDto dto)
+        {
+            employment.Grade1Total = dto.Grade1Total;
+            employment.Grade1JobPercent = dto.Grade1JobPercent;
+            employment.Grade1TrainingFundPercent = dto.Grade1TrainingFundPercent;
+            employment.Grade1AgeHours = dto.Grade1AgeHours;
+            employment.Grade1MotherBenefitPercent = dto.Grade1MotherBenefitPercent;
+            employment.Grade2Total = dto.Grade2Total;
+            employment.Grade2JobPercent = dto.Grade2JobPercent;
+            employment.Grade2TrainingFundPercent = dto.Grade2TrainingFundPercent;
+            employment.Grade2AgeHours = dto.Grade2AgeHours;
+            employment.Grade2MotherBenefitPercent = dto.Grade2MotherBenefitPercent;
+
+            employment.Slots.Clear();
+            foreach (var slotDto in dto.Slots ?? [])
+            {
+                employment.Slots.Add(new ParsedEmploymentSlotPlan
+                {
+                    GradeBand = (byte)slotDto.GradeBand,
+                    SlotIndex = (byte)slotDto.SlotIndex,
+                    InstitutionSymbol = slotDto.InstitutionSymbol,
+                    WeeklyHours = slotDto.WeeklyHours,
+                    JobBase = slotDto.JobBase,
+                    SupplementaryParentSlotIndex = slotDto.SupplementaryParentSlotIndex is >= 1 and <= 5
+                        ? (byte?)slotDto.SupplementaryParentSlotIndex
+                        : null,
+                });
+            }
+        }
+
+        private static DateOnly?[] GetChildBirthDates(EmployeeImportRowPlan plan) =>
+        [
+            plan.ChildBirthDate1,
+            plan.ChildBirthDate2,
+            plan.ChildBirthDate3,
+            plan.ChildBirthDate4,
+            plan.ChildBirthDate5,
+            plan.ChildBirthDate6,
+            plan.ChildBirthDate7,
+            plan.ChildBirthDate8,
+            plan.ChildBirthDate9,
+            plan.ChildBirthDate10,
+        ];
 
         private static XLWorkbook OpenWorkbookOrThrow(IFormFile file)
         {

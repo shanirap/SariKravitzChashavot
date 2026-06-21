@@ -49,13 +49,6 @@ namespace AccountingProject.Services
             if (pwdErr != null)
                 return (null, pwdErr);
 
-            var roleNormalized = dto.Role.Trim();
-            if (!UserRoles.All.Contains(roleNormalized))
-                return (null, $"Role must be one of: {string.Join(", ", UserRoles.All)}.");
-
-            if (roleNormalized.Length > 64)
-                return (null, "Role exceeds maximum length.");
-
             if (await _db.Users.AsNoTracking().AnyAsync(u => u.Username == usernameTrimmed, cancellationToken))
                 return (null, "Username is already in use.");
 
@@ -63,7 +56,7 @@ namespace AccountingProject.Services
             {
                 Username = usernameTrimmed,
                 Password = dto.Password,
-                Role = roleNormalized,
+                Role = UserRoles.Admin,
             };
 
             try

@@ -124,7 +124,7 @@ public sealed class ReportExportServiceErrorTests
 
         using var wb = new XLWorkbook(new MemoryStream(bytes));
         var ws = wb.Worksheet("עובדים אישיים");
-        Assert.Equal("שם פרטי", ws.Cell(1, 1).GetString());
+        Assert.Equal("שם משפחה", ws.Cell(1, 1).GetString());
         Assert.Equal(1, ws.LastRowUsed()?.RowNumber());
     }
 

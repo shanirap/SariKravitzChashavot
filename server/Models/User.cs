@@ -18,7 +18,7 @@ namespace AccountingProject.Models
 
         [Required]
         [MaxLength(64)]
-        public string Role { get; set; } = UserRoles.Viewer;
+        public string Role { get; set; } = UserRoles.Admin;
 
         public bool IsActive { get; set; } = true;
 

@@ -26,7 +26,7 @@ public sealed class UserManagementTests
         Assert.Null(error);
         Assert.NotNull(user);
         Assert.Equal("office-user", user!.Username);
-        Assert.Equal(UserRoles.Viewer, user.Role);
+        Assert.Equal(UserRoles.Admin, user.Role);
     }
 
     [Fact]
@@ -94,21 +94,71 @@ public sealed class UserManagementTests
     }
 
     [Fact]
-    public async Task CreateAsync_InvalidRoleRejected()
+    public async Task CreateAsync_ClientRoleIgnored_AlwaysAdmin()
     {
         await using var db = DbTestFactory.CreateContext();
         var sut = new UserManagementService(db);
 
-        var (user, error) = await sut.CreateAsync(new AdminCreateUserRequestDto
+        var (viewerUser, viewerErr) = await sut.CreateAsync(new AdminCreateUserRequestDto
         {
-            Username = "role-test-user",
+            Username = "viewer-request",
             Password = ValidPassword,
-            Role = "NotARealRole"
+            Role = UserRoles.Viewer,
         }, CancellationToken.None);
 
-        Assert.Null(user);
-        Assert.NotNull(error);
-        Assert.StartsWith("Role must be one of:", error);
+        Assert.Null(viewerErr);
+        Assert.Equal(UserRoles.Admin, viewerUser!.Role);
+
+        var (pmUser, pmErr) = await sut.CreateAsync(new AdminCreateUserRequestDto
+        {
+            Username = "payroll-request",
+            Password = ValidPassword,
+            Role = $"  {UserRoles.PayrollManager}  ",
+        }, CancellationToken.None);
+
+        Assert.Null(pmErr);
+        Assert.Equal(UserRoles.Admin, pmUser!.Role);
+
+        var (badRoleUser, badRoleErr) = await sut.CreateAsync(new AdminCreateUserRequestDto
+        {
+            Username = "bad-role-request",
+            Password = ValidPassword,
+            Role = "NotARealRole",
+        }, CancellationToken.None);
+
+        Assert.Null(badRoleErr);
+        Assert.Equal(UserRoles.Admin, badRoleUser!.Role);
+    }
+
+    [Fact]
+    public async Task SetPasswordAsync_DoesNotChangeRole()
+    {
+        await using var db = DbTestFactory.CreateContext();
+        var u = SeedUser(db, "role-stable", ValidPassword, isActive: true);
+        var sut = new UserManagementService(db);
+
+        var (ok, err) = await sut.SetPasswordAsync(u.Id, "Bb2@bbbbbbbb", CancellationToken.None);
+
+        Assert.True(ok);
+        Assert.Null(err);
+        var reloaded = await db.Users.FindAsync(u.Id);
+        Assert.Equal(UserRoles.Admin, reloaded!.Role);
+    }
+
+    [Fact]
+    public async Task SetActiveAsync_DoesNotChangeRole()
+    {
+        await using var db = DbTestFactory.CreateContext();
+        var admin = SeedUser(db, "admin-role", ValidPassword, isActive: true);
+        var other = SeedUser(db, "other-role", "Aa1!wwwwwwww", isActive: true);
+        var sut = new UserManagementService(db);
+
+        var (ok, err) = await sut.SetActiveAsync(other.Id, false, currentAdminUserId: admin.Id, CancellationToken.None);
+
+        Assert.True(ok);
+        Assert.Null(err);
+        var reloaded = await db.Users.FindAsync(other.Id);
+        Assert.Equal(UserRoles.Admin, reloaded!.Role);
     }
 
     [Fact]
@@ -144,24 +194,6 @@ public sealed class UserManagementTests
 
         Assert.Null(user);
         Assert.Equal("Username is already in use.", error);
-    }
-
-    [Fact]
-    public async Task CreateAsync_PayrollManagerRoleAccepted()
-    {
-        await using var db = DbTestFactory.CreateContext();
-        var sut = new UserManagementService(db);
-
-        var (user, error) = await sut.CreateAsync(new AdminCreateUserRequestDto
-        {
-            Username = "payroll-mgr",
-            Password = ValidPassword,
-            Role = $"  {UserRoles.PayrollManager}  "
-        }, CancellationToken.None);
-
-        Assert.Null(error);
-        Assert.NotNull(user);
-        Assert.Equal(UserRoles.PayrollManager, user!.Role);
     }
 
     [Fact]

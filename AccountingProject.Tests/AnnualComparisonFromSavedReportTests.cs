@@ -15,8 +15,8 @@ public sealed class AnnualComparisonFromSavedReportTests
     private const string Year = "תשפ\"ו";
     private const int Month = 9;
     private const int GregorianYear = 2025;
-    private const int FirstMonthColumn = 10;
-    private const int LastMonthColumn = 21;
+    private const int FirstMonthColumn = 11;
+    private const int LastMonthColumn = 22;
 
     [Fact]
     public async Task AnnualComparisonFromSaved_NoBatches_AllMonthColumnsShowNotCaptured()
@@ -46,7 +46,7 @@ public sealed class AnnualComparisonFromSavedReportTests
     }
 
     [Fact]
-    public async Task AnnualComparisonFromSaved_EditedSavedRow_AffectsReport()
+    public async Task AnnualComparisonFromSaved_EditedSavedSugMisra_ShowsInStaticColumn_NotRoleMismatch()
     {
         await using var db = DbTestFactory.CreateContext();
         var employerId = await SeedMatchingEmploymentAsync(db);
@@ -59,9 +59,31 @@ public sealed class AnnualComparisonFromSavedReportTests
         await db.SaveChangesAsync();
 
         using var wb = await OpenSavedReportAsync(db, employerId, importSeptember: false);
+        var ws = wb.Worksheet(SheetName);
+        Assert.Equal("סייעת", ws.Cell(2, 4).GetString());
+        var cell = ws.Cell(2, FirstMonthColumn).GetString();
+        Assert.Contains("סוג משרה:", cell);
+        Assert.Contains("נדרש=משרה חודשית", cell);
+        Assert.DoesNotContain("תפקיד:", cell);
+    }
+
+    [Fact]
+    public async Task AnnualComparisonFromSaved_NonMonthlySugMisra_ShowsDetail()
+    {
+        await using var db = DbTestFactory.CreateContext();
+        var employerId = await SeedMatchingEmploymentAsync(db);
+        var importService = new PayrollMonthlyInputService(db, new TestCurrentUser());
+        await using var upload = ValidSeptemberUpload();
+        await importService.ImportMonthAsync(employerId, Year, Month, upload, "base.xlsx");
+
+        var savedRow = await db.PayrollMonthlyInputRows.SingleAsync(r => r.IdNumber == "123456789" && !r.IsDeleted);
+        savedRow.Role = "משרה שעתית";
+        await db.SaveChangesAsync();
+
+        using var wb = await OpenSavedReportAsync(db, employerId, importSeptember: false);
         var cell = wb.Worksheet(SheetName).Cell(2, FirstMonthColumn).GetString();
-        Assert.Contains("תפקיד:", cell);
-        Assert.Contains("סייעת", cell);
+        Assert.Contains("סוג משרה:", cell);
+        Assert.Contains("נדרש=משרה חודשית", cell);
     }
 
     [Fact]
@@ -76,7 +98,7 @@ public sealed class AnnualComparisonFromSavedReportTests
             "Import Worker",
             Month,
             GregorianYear,
-            b => b.Band1(misra1Hours: 30m, misra1Base: 28m, jobPercent: 100m, doubleGeneral: 10m));
+            b => b.Band1(misra1Hours: 30m, misra1Base: 30m, jobPercent: 100m, doubleGeneral: 10m));
         await importService.ImportMonthAsync(employerId, Year, Month, upload, "mult.xlsx");
 
         using var wb = await OpenSavedReportAsync(db, employerId, importSeptember: false);
@@ -118,7 +140,7 @@ public sealed class AnnualComparisonFromSavedReportTests
             "Import Worker",
             Month,
             GregorianYear,
-            b => b.Band1(misra1Hours: 30m, misra1Base: 28m, jobPercent: 100m));
+            b => b.Band1(misra1Hours: 30m, misra1Base: 30m, jobPercent: 100m));
 
     private sealed class TestCurrentUser : ICurrentUserService
     {

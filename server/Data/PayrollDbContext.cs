@@ -41,6 +41,7 @@ namespace AccountingProject.Data
         public DbSet<User> Users { get; set; }
         public DbSet<PayrollMonthlyInputBatch> PayrollMonthlyInputBatches { get; set; }
         public DbSet<PayrollMonthlyInputRow> PayrollMonthlyInputRows { get; set; }
+        public DbSet<AnnualComparisonReportRowOverride> AnnualComparisonReportRowOverrides { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -184,6 +185,29 @@ namespace AccountingProject.Data
             payrollMonthlyInputRow.Property(r => r.DoubleDegree).HasPrecision(18, 2);
             payrollMonthlyInputRow.Property(r => r.TrainingFund).HasPrecision(18, 2);
             payrollMonthlyInputRow.Property(r => r.GeneralMultiplier).HasPrecision(18, 2);
+
+            var annualOverride = modelBuilder.Entity<AnnualComparisonReportRowOverride>();
+            annualOverride.HasKey(o => o.Id);
+            annualOverride.Property(o => o.EmployerId).IsRequired();
+            annualOverride.Property(o => o.AcademicYear).IsRequired();
+            annualOverride.Property(o => o.SlotId).IsRequired();
+            annualOverride
+                .HasOne(o => o.Employer)
+                .WithMany()
+                .HasForeignKey(o => o.EmployerId)
+                .OnDelete(DeleteBehavior.Cascade);
+            annualOverride
+                .HasOne(o => o.Slot)
+                .WithMany()
+                .HasForeignKey(o => o.SlotId)
+                .OnDelete(DeleteBehavior.Cascade);
+            annualOverride
+                .HasIndex(o => new { o.EmployerId, o.AcademicYear, o.SlotId })
+                .IsUnique();
+            annualOverride.Property(o => o.WeeklyHours).HasPrecision(18, 2);
+            annualOverride.Property(o => o.JobBase).HasPrecision(18, 2);
+            annualOverride.Property(o => o.JobPercent).HasPrecision(18, 2);
+            annualOverride.Property(o => o.DoubleGeneral).HasPrecision(18, 2);
         }
 
         public override int SaveChanges()

@@ -198,7 +198,7 @@ describe('PayrollMonthlyRowsEditor', () => {
     await flush();
 
     await vi.waitFor(() => {
-      expect(mockUpdateRow).toHaveBeenCalledWith(1, expect.any(Object));
+      expect(mockUpdateRow).toHaveBeenCalledWith(5, 1, expect.any(Object));
       expect(onSaved).toHaveBeenCalled();
       expect(mockGetRows.mock.calls.length).toBeGreaterThanOrEqual(2);
     });

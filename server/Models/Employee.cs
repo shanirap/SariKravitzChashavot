@@ -38,6 +38,6 @@ namespace AccountingProject.Models
         [ForeignKey("EmployerId")] public Employer? Employer { get; set; }
         public ICollection<EmploymentData> EmploymentData { get; set; } = new List<EmploymentData>();
 
-        [NotMapped] public string FullName => $"{FirstName} {LastName}".Trim();
+        [NotMapped] public string FullName => $"{LastName} {FirstName}".Trim();
     }
 }

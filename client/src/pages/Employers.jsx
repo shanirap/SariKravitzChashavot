@@ -127,7 +127,7 @@ export default function Employers() {
           <form onSubmit={handleSearch} className="d-flex gap-2 mb-3">
             <div className="input-group" style={{ maxWidth: 380 }}>
               <span className="input-group-text"><i className="bi bi-search"></i></span>
-              <input type="text" className="form-control" placeholder="חיפוש לפי שם, ח.פ., סמל מוטב..."
+              <input type="text" className="form-control" placeholder="חיפוש לפי שם, ח.פ., סמל מוטב, מספר עוקץ..."
                 value={searchInput} onChange={e => setSearchInput(e.target.value)} />
               {searchInput && (
                 <button type="button" className="btn btn-outline-secondary" onClick={clearSearch}>

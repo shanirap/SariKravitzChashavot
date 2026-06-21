@@ -11,7 +11,13 @@ namespace AccountingProject.Services
         Task<Employer> CreateAsync(EmployerDto dto);
         Task<bool> UpdateAsync(int id, EmployerDto dto);
         Task<(bool Success, string? Message)> DeleteAsync(int id);
-        Task<PagedResult<Employee>> GetEmployeesAsync(int employerId, string? search, int page, int pageSize);
+        Task<PagedResult<Employee>> GetEmployeesAsync(
+            int employerId,
+            string? search,
+            int page,
+            int pageSize,
+            bool? isActive = null,
+            string? institutionSymbol = null);
         Task<HashSet<int>> GetEmployeeIdsWithEmploymentDataAsync(int employerId, IReadOnlyList<int> employeeIds);
         Task<IReadOnlyList<EmployerInstitutionSymbol>> GetInstitutionSymbolsAsync(int employerId);
         Task<(EmployerInstitutionSymbol? Symbol, string? Message)> CreateInstitutionSymbolAsync(int employerId, EmployerInstitutionSymbolDto dto);

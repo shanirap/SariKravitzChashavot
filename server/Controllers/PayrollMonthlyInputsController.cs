@@ -1,4 +1,5 @@
 using AccountingProject.Contracts;
+using AccountingProject.Domain;
 using AccountingProject.Infrastructure;
 using AccountingProject.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -19,6 +20,7 @@ namespace AccountingProject.Controllers
         // POST /api/payroll-monthly-inputs/import?employerId=&academicYear=&month=
         // Body: multipart/form-data with "file" (.xlsx)
         [HttpPost("import")]
+        [AdminWrite]
         [RequestSizeLimit(ExcelUploadRules.ComparisonMonthlyPayrollMaxBytes)]
         public async Task<IActionResult> ImportMonth(
             [FromQuery] int employerId,
@@ -28,6 +30,8 @@ namespace AccountingProject.Controllers
         {
             if (employerId <= 0 || string.IsNullOrWhiteSpace(academicYear) || month is < 1 or > 12)
                 return BadRequest(new { message = "employerId, academicYear וחודש תקין (1–12) נדרשים." });
+            if (!HebrewAcademicYear.TryValidateAndCanonicalize(academicYear, out var canonicalYear))
+                return BadRequest(new { message = HebrewAcademicYear.InvalidMessage });
             if (!ExcelUploadRules.TryValidateStrictXlsx(file, ExcelUploadRules.ComparisonMonthlyPayrollMaxBytes, out var uploadError))
                 return BadRequest(new { message = uploadError });
 
@@ -36,7 +40,7 @@ namespace AccountingProject.Controllers
                 await using var stream = file!.OpenReadStream();
                 var result = await _payrollMonthlyInputService.ImportMonthAsync(
                     employerId,
-                    academicYear.Trim(),
+                    canonicalYear,
                     month,
                     stream,
                     file.FileName);
@@ -55,12 +59,14 @@ namespace AccountingProject.Controllers
         {
             if (employerId <= 0 || string.IsNullOrWhiteSpace(academicYear))
                 return BadRequest(new { message = "employerId ו-academicYear נדרשים." });
+            if (!HebrewAcademicYear.TryValidateAndCanonicalize(academicYear, out var canonicalYear))
+                return BadRequest(new { message = HebrewAcademicYear.InvalidMessage });
 
             try
             {
                 var status = await _payrollMonthlyInputService.GetYearStatusAsync(
                     employerId,
-                    academicYear.Trim());
+                    canonicalYear);
                 return Ok(status);
             }
             catch (InvalidOperationException ex)
@@ -77,12 +83,14 @@ namespace AccountingProject.Controllers
         {
             if (employerId <= 0 || string.IsNullOrWhiteSpace(academicYear) || month is < 1 or > 12)
                 return BadRequest(new { message = "employerId, academicYear וחודש תקין (1–12) נדרשים." });
+            if (!HebrewAcademicYear.TryValidateAndCanonicalize(academicYear, out var canonicalYear))
+                return BadRequest(new { message = HebrewAcademicYear.InvalidMessage });
 
             try
             {
                 var rows = await _payrollMonthlyInputService.GetRowsAsync(
                     employerId,
-                    academicYear.Trim(),
+                    canonicalYear,
                     month);
                 return Ok(rows);
             }
@@ -93,11 +101,17 @@ namespace AccountingProject.Controllers
         }
 
         [HttpPut("rows/{id}")]
-        public async Task<IActionResult> UpdateRow(int id, [FromBody] PayrollMonthlyInputRowEditDto dto)
+        [AdminWrite]
+        public async Task<IActionResult> UpdateRow(
+            int id,
+            [FromQuery] int employerId,
+            [FromBody] PayrollMonthlyInputRowEditDto dto)
         {
+            if (employerId <= 0)
+                return BadRequest(new { message = "employerId נדרש." });
             try
             {
-                var row = await _payrollMonthlyInputService.UpdateRowAsync(id, dto);
+                var row = await _payrollMonthlyInputService.UpdateRowAsync(employerId, id, dto);
                 return Ok(row);
             }
             catch (InvalidOperationException ex)
@@ -107,11 +121,14 @@ namespace AccountingProject.Controllers
         }
 
         [HttpDelete("rows/{id}")]
-        public async Task<IActionResult> DeleteRow(int id)
+        [AdminWrite]
+        public async Task<IActionResult> DeleteRow(int id, [FromQuery] int employerId)
         {
+            if (employerId <= 0)
+                return BadRequest(new { message = "employerId נדרש." });
             try
             {
-                await _payrollMonthlyInputService.DeleteRowAsync(id);
+                await _payrollMonthlyInputService.DeleteRowAsync(employerId, id);
                 return NoContent();
             }
             catch (InvalidOperationException ex)

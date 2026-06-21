@@ -3,27 +3,18 @@ using AccountingProject.Data;
 using AccountingProject.Domain;
 using AccountingProject.Models;
 using Microsoft.EntityFrameworkCore;
-using System.Globalization;
 
 namespace AccountingProject.Services
 {
     public class EmploymentDataService : IEmploymentDataService
     {
-        private const decimal OneThirdJobPercent = 100m / 3m;
-        private static readonly Dictionary<string, decimal> MotherBenefitRateByGradeName = new(StringComparer.Ordinal)
-        {
-            ["יסודי וגנים"] = 10m,
-            ["אחיד"] = 7m,
-            ["עוז לתמורה"] = 10m,
-            ["אופק חדש"] = 10m,
-            ["אופק גנים"] = 10m,
-        };
-
         private readonly PayrollDbContext _db;
+        private readonly IEmploymentCalculationService _calculations;
 
-        public EmploymentDataService(PayrollDbContext db)
+        public EmploymentDataService(PayrollDbContext db, IEmploymentCalculationService calculations)
         {
             _db = db;
+            _calculations = calculations;
         }
 
         public async Task<IReadOnlyList<EmploymentData>> GetByEmployeeAndEmployerAsync(int employeeId, int employerId)
@@ -43,7 +34,7 @@ namespace AccountingProject.Services
 
             var record = new EmploymentData();
             ApplyHeader(record, dto);
-            ApplySlots(record, dto.Slots);
+            ApplySlots(record, dto.Slots ?? []);
             _db.EmploymentData.Add(record);
             await _db.SaveChangesAsync();
             await _db.Entry(record).Collection(r => r.Slots).LoadAsync();
@@ -63,7 +54,7 @@ namespace AccountingProject.Services
             ApplyHeader(record, dto);
             _db.EmploymentDataSlots.RemoveRange(record.Slots);
             record.Slots.Clear();
-            ApplySlots(record, dto.Slots);
+            ApplySlots(record, dto.Slots ?? []);
             await _db.SaveChangesAsync();
             await _db.Entry(record).Collection(r => r.Slots).LoadAsync();
             return (record, null);
@@ -81,15 +72,34 @@ namespace AccountingProject.Services
 
         private async Task<string?> ValidateAsync(EmploymentDataDto dto, int? excludeId)
         {
-            var academicYear = HebrewAcademicYear.Normalize(dto.AcademicYear);
-            if (academicYear == null)
-                return "שנת לימודים עברית לא תקינה.";
+            if (dto.Slots == null)
+                return "מקטעי העסקה חסרים.";
+
+            if (!HebrewAcademicYear.TryValidateAndCanonicalize(dto.AcademicYear, out var academicYear))
+                return HebrewAcademicYear.InvalidMessage;
             dto.AcademicYear = academicYear;
+            dto.Grade1GradeName = GradeOptions.NormalizeGradeName(dto.Grade1GradeName);
+            dto.Grade2GradeName = GradeOptions.NormalizeGradeName(dto.Grade2GradeName);
 
             var employeeRow = await _db.Employees
                 .AsNoTracking()
                 .Where(e => e.Id == dto.EmployeeId)
-                .Select(e => new { e.EmployerId, e.Gender })
+                .Select(e => new
+                {
+                    e.EmployerId,
+                    e.Gender,
+                    e.BirthDate,
+                    e.ChildBirthDate1,
+                    e.ChildBirthDate2,
+                    e.ChildBirthDate3,
+                    e.ChildBirthDate4,
+                    e.ChildBirthDate5,
+                    e.ChildBirthDate6,
+                    e.ChildBirthDate7,
+                    e.ChildBirthDate8,
+                    e.ChildBirthDate9,
+                    e.ChildBirthDate10,
+                })
                 .FirstOrDefaultAsync();
             if (employeeRow == null)
                 return "העובד לא נמצא במערכת.";
@@ -168,7 +178,24 @@ namespace AccountingProject.Services
                     return $"סמל המוסד בשורת השעות הנוספות דרגה{s.GradeBand}_{s.SlotIndex} חייב להתאים למקטע ההורה.";
             }
 
-            RecalculateDerivedValues(dto, IsFemaleGender(employeeGender));
+            var childBirthDates = new DateOnly?[]
+            {
+                employeeRow.ChildBirthDate1,
+                employeeRow.ChildBirthDate2,
+                employeeRow.ChildBirthDate3,
+                employeeRow.ChildBirthDate4,
+                employeeRow.ChildBirthDate5,
+                employeeRow.ChildBirthDate6,
+                employeeRow.ChildBirthDate7,
+                employeeRow.ChildBirthDate8,
+                employeeRow.ChildBirthDate9,
+                employeeRow.ChildBirthDate10,
+            };
+            _calculations.PrepareForSave(
+                dto,
+                employeeRow.BirthDate,
+                IsFemaleGender(employeeGender),
+                childBirthDates);
             return null;
         }
 
@@ -179,7 +206,7 @@ namespace AccountingProject.Services
         {
             r.EmployeeId = d.EmployeeId;
             r.EmployerId = d.EmployerId;
-            r.AcademicYear = HebrewAcademicYear.Normalize(d.AcademicYear) ?? string.Empty;
+            r.AcademicYear = d.AcademicYear ?? string.Empty;
             r.Grade1Total = d.Grade1Total;
             r.Grade1JobPercent = d.Grade1JobPercent;
             r.Grade1TrainingFundPercent = d.Grade1TrainingFundPercent;
@@ -225,105 +252,5 @@ namespace AccountingProject.Services
         private static bool IsFemaleGender(string? gender) =>
             string.Equals(gender?.Trim(), "נקבה", StringComparison.Ordinal)
             || string.Equals(gender?.Trim(), "female", StringComparison.OrdinalIgnoreCase);
-
-        private void RecalculateDerivedValues(EmploymentDataDto dto, bool isFemaleEmployee)
-        {
-            var slots = dto.Slots ?? [];
-            dto.Grade1Total = SumWeeklyHours(slots.Where(s => s.GradeBand == 1));
-            dto.Grade2Total = SumWeeklyHours(slots.Where(s => s.GradeBand == 2));
-
-            dto.Grade1MotherBenefitPercent = ComputeMotherBenefitPercent(dto, 1, isFemaleEmployee);
-            dto.Grade2MotherBenefitPercent = ComputeMotherBenefitPercent(dto, 2, isFemaleEmployee);
-
-            dto.Grade1JobPercent = ComputeJobPercent(dto, 1);
-            dto.Grade2JobPercent = ComputeJobPercent(dto, 2);
-
-            dto.Grade1TrainingFundPercent = ComputeTrainingFundPercent(dto, 1);
-            dto.Grade2TrainingFundPercent = ComputeTrainingFundPercent(dto, 2);
-        }
-
-        private static decimal? SumWeeklyHours(IEnumerable<EmploymentDataSlotDto> rows)
-        {
-            var vals = rows
-                .Select(r => r.WeeklyHours)
-                .Where(v => v.HasValue)
-                .Select(v => v!.Value)
-                .ToList();
-            if (vals.Count == 0) return null;
-            return Math.Round(vals.Sum(), 2);
-        }
-
-        private static decimal? ComputeEquivalentJobBase(IEnumerable<EmploymentDataSlotDto> rows)
-        {
-            decimal sumW = 0m;
-            decimal sumWOverBase = 0m;
-            foreach (var row in rows)
-            {
-                var w = row.WeeklyHours;
-                var b = row.JobBase;
-                if (!w.HasValue || !b.HasValue || w.Value <= 0 || b.Value <= 0) continue;
-                sumW += w.Value;
-                sumWOverBase += w.Value / b.Value;
-            }
-            if (sumW <= 0 || sumWOverBase <= 0) return null;
-            return sumW / sumWOverBase;
-        }
-
-        private static decimal? ComputeBaseJobPercent(EmploymentDataDto dto, int band)
-        {
-            var total = band == 1 ? dto.Grade1Total : dto.Grade2Total;
-            var rows = (dto.Slots ?? []).Where(s => s.GradeBand == band);
-            var equiv = ComputeEquivalentJobBase(rows);
-            if (!total.HasValue || !equiv.HasValue || equiv.Value <= 0) return null;
-            return Math.Round((total.Value / equiv.Value) * 100m, 2);
-        }
-
-        private static decimal? ComputeMotherBenefitPercent(EmploymentDataDto dto, int band, bool isFemaleEmployee)
-        {
-            var gradeName = (band == 1 ? dto.Grade1GradeName : dto.Grade2GradeName)?.Trim();
-            if (string.IsNullOrWhiteSpace(gradeName) || !MotherBenefitRateByGradeName.TryGetValue(gradeName, out var rate))
-                return null;
-            if (!isFemaleEmployee) return 0m;
-
-            var basePct = ComputeBaseJobPercent(dto, band);
-            if (!basePct.HasValue || basePct.Value <= 79m) return 0m;
-
-            // Child-age validation is currently available only in client flow.
-            return rate;
-        }
-
-        private static decimal? ComputeJobPercent(EmploymentDataDto dto, int band)
-        {
-            var total = band == 1 ? dto.Grade1Total : dto.Grade2Total;
-            var mother = band == 1 ? dto.Grade1MotherBenefitPercent : dto.Grade2MotherBenefitPercent;
-            var rows = (dto.Slots ?? []).Where(s => s.GradeBand == band);
-            var equiv = ComputeEquivalentJobBase(rows);
-            if (!total.HasValue || !equiv.HasValue || equiv.Value <= 0) return null;
-            var mom = mother ?? 0m;
-            return Math.Round((total.Value / equiv.Value) * 100m + mom, 2);
-        }
-
-        private static decimal? ComputeTrainingFundPercent(EmploymentDataDto dto, int band)
-        {
-            var gradeName = (band == 1 ? dto.Grade1GradeName : dto.Grade2GradeName)?.Trim();
-            if (string.IsNullOrWhiteSpace(gradeName)) return null;
-            var jobPct = band == 1 ? dto.Grade1JobPercent : dto.Grade2JobPercent;
-            if (!jobPct.HasValue) return null;
-            if (jobPct.Value < OneThirdJobPercent) return 0m;
-
-            if (gradeName == "אחיד")
-            {
-                var seniority = (band == 1 ? dto.Grade1Seniority : dto.Grade2Seniority)?.Trim();
-                if (decimal.TryParse(seniority, NumberStyles.Any, CultureInfo.InvariantCulture, out var years) && years > 2m)
-                    return 7.5m;
-                return 0m;
-            }
-
-            return gradeName switch
-            {
-                "יסודי וגנים" or "עוז לתמורה" or "אופק חדש" or "אופק גנים" => 8.4m,
-                _ => null
-            };
-        }
     }
 }

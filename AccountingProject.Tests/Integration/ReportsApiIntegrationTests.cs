@@ -135,7 +135,7 @@ public sealed class ReportsApiIntegrationTests
             EmployerId = employer.Id,
             AcademicYear = Year,
             Grade1GradeName = "יסודי וגנים",
-            Grade1Role = "גננת ראשית",
+            Grade1Role = "מורה מקצועי",
             Grade1Grade = "ב",
             Grade1Seniority = "5",
             Slots =
@@ -146,7 +146,7 @@ public sealed class ReportsApiIntegrationTests
                     SlotIndex = 1,
                     InstitutionSymbol = "G-API",
                     WeeklyHours = 30m,
-                    JobBase = 28m,
+                    JobBase = 30m,
                 },
             ],
         });

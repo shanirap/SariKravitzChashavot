@@ -23,6 +23,10 @@ vi.mock('./PayrollMonthlyRowsEditor.jsx', () => ({
   default: () => null,
 }));
 
+vi.mock('./AnnualComparisonSavedReportEditor.jsx', () => ({
+  default: () => null,
+}));
+
 vi.mock('../../employmentDataHelpers', () => ({
   REPORT_ACADEMIC_YEAR_OPTIONS: ['תשפ"ו'],
 }));
@@ -159,7 +163,7 @@ describe('AnnualComparisonSavedPanel', () => {
     await waitForTableRows();
 
     const generateBtn = [...document.querySelectorAll('button')].find((b) =>
-      b.textContent.includes('הפק דוח השוואה שנתי'),
+      b.textContent.includes('ייצוא לאקסל'),
     );
     expect(generateBtn).toBeTruthy();
 
@@ -216,7 +220,7 @@ describe('AnnualComparisonSavedPanel', () => {
 
     expect(mockGetYearStatus).not.toHaveBeenCalled();
     const generateBtn = [...document.querySelectorAll('button')].find((b) =>
-      b.textContent.includes('הפק דוח השוואה שנתי'),
+      b.textContent.includes('ייצוא לאקסל'),
     );
     expect(generateBtn?.disabled).toBe(true);
   });
@@ -233,7 +237,7 @@ describe('AnnualComparisonSavedPanel', () => {
     await waitForTableRows();
 
     const generateBtn = [...document.querySelectorAll('button')].find((b) =>
-      b.textContent.includes('הפק דוח השוואה שנתי'),
+      b.textContent.includes('ייצוא לאקסל'),
     );
     await act(async () => {
       generateBtn.click();

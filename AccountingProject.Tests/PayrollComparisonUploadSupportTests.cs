@@ -80,6 +80,18 @@ public sealed class PayrollComparisonUploadSupportTests
     }
 
     [Theory]
+    [InlineData("משרה חודשית", true)]
+    [InlineData("  משרה   חודשית  ", true)]
+    [InlineData("משרה שעתית", false)]
+    [InlineData("גננת", false)]
+    [InlineData(null, false)]
+    [InlineData("", false)]
+    public void IsMonthlyJobType_AcceptsOnlyExpectedValue(string? value, bool expected)
+    {
+        Assert.Equal(expected, PayrollComparisonUploadSupport.IsMonthlyJobType(value));
+    }
+
+    [Theory]
     [InlineData("גננת", "גננת", true)]
     [InlineData("גננת", "  גננת  ", true)]
     [InlineData("גננת", "מורה", false)]

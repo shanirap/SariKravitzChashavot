@@ -39,7 +39,7 @@ public sealed class PayrollMonthlyInputsApiValidationTests
         var client = await IntegrationAuth.CreateAdminClientAsync(factory);
 
         var resp = await client.PutAsJsonAsync(
-            "/api/payroll-monthly-inputs/rows/999999",
+            "/api/payroll-monthly-inputs/rows/999999?employerId=1",
             new { role = "test" });
 
         Assert.Equal(HttpStatusCode.NotFound, resp.StatusCode);

@@ -11,10 +11,13 @@ namespace AccountingProject.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.Sql("""
-                DELETE FROM [נתוני_העסקה_מקטע]
-                WHERE [מקטע_הורה_שעות_נוספות] IS NULL
-                  AND ([סמל_מוסד] IS NULL OR LTRIM(RTRIM([סמל_מוסד])) = '')
-                  AND ([שעות_שבועיות] IS NULL OR [שעות_שבועיות] = 0);
+                IF COL_LENGTH(N'נתוני_העסקה_מקטע', N'מקטע_הורה_שעות_נוספות') IS NOT NULL
+                BEGIN
+                    DELETE FROM [נתוני_העסקה_מקטע]
+                    WHERE [מקטע_הורה_שעות_נוספות] IS NULL
+                      AND ([סמל_מוסד] IS NULL OR LTRIM(RTRIM([סמל_מוסד])) = '')
+                      AND ([שעות_שבועיות] IS NULL OR [שעות_שבועיות] = 0);
+                END;
                 """);
         }
 

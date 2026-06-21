@@ -14,7 +14,7 @@ public sealed class EmploymentDataFieldsTests
         await using var db = DbTestFactory.CreateContext();
         var (employer, employee) = SeedEmployerAndEmployee(db);
 
-        var sut = new EmploymentDataService(db);
+        var sut = ServiceTestFactory.CreateEmploymentDataService(db);
         var dto = new EmploymentDataDto
         {
             EmployeeId = employee.Id,
@@ -59,7 +59,7 @@ public sealed class EmploymentDataFieldsTests
         db.SaveChanges();
         var existing = db.EmploymentData.First();
 
-        var sut = new EmploymentDataService(db);
+        var sut = ServiceTestFactory.CreateEmploymentDataService(db);
         var dto = new EmploymentDataDto
         {
             EmployeeId = employee.Id,

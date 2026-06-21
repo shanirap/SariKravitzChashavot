@@ -293,11 +293,22 @@ internal static class PayrollComparisonUploadSupport
         ed.Slots.Where(s => s.GradeBand == gradeBand && !SlotIsEmpty(s))
             .Sum(s => s.WeeklyHours ?? 0);
 
+    internal const string ExpectedMonthlyJobType = "משרה חודשית";
+
+    internal static bool IsMonthlyJobType(string? value) =>
+        TextEqual(value, ExpectedMonthlyJobType);
+
     internal static bool TextEqual(string? a, string? b)
     {
         var na = NormalizeText(a);
         var nb = NormalizeText(b);
         return string.Equals(na, nb, StringComparison.Ordinal);
+    }
+
+    internal static bool SeniorityEqual(string? a, string? b)
+    {
+        if (TextEqual(a, b)) return true;
+        return DecimalsEqual(ParseDecimal(a), ParseDecimal(b));
     }
 
     internal static string NormalizeText(string? value)
@@ -336,11 +347,8 @@ internal static class PayrollComparisonUploadSupport
         return raw.Trim().Replace("-", "", StringComparison.Ordinal).Replace(" ", "", StringComparison.Ordinal);
     }
 
-    internal static string CanonAcademicYear(string? stored)
-    {
-        var n = HebrewAcademicYear.Normalize(stored?.Trim());
-        return string.IsNullOrWhiteSpace(n) ? (stored ?? "").Trim() : n.Trim();
-    }
+    internal static string CanonAcademicYear(string? stored) =>
+        HebrewAcademicYear.CanonicalForComparison(stored);
 
     private static int InferGregorianYearForMonth(
         int month,

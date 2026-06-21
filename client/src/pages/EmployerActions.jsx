@@ -63,7 +63,7 @@ const COMPARE_SUBTYPES = [
     key: 'institution-hours',
     label: 'בדיקת שעות לסמל',
     icon: 'bi-clock-history',
-    description: 'בדיקת שעות לפי סמל מוסד ושנת לימודים',
+    description: 'בדיקת שעות לפי סמל מוסד או לכל הסמלים יחד ושנת לימודים',
   },
 ];
 
@@ -189,7 +189,7 @@ export default function EmployerActions() {
       return;
     }
     if (!symbol) {
-      showAlert('warning', 'יש לבחור סמל מוסד.');
+      showAlert('warning', 'יש לבחור סמל מוסד או "כל הסמלים".');
       return;
     }
     setInstitutionHoursBusy(true);
@@ -200,7 +200,8 @@ export default function EmployerActions() {
       });
       const suffix = formatDateDDMMYYYYForFilename(new Date());
       const safeName = sanitizeFilenamePart(employer?.name) || `מעסיק_${id}`;
-      const filename = `שעות_סמל_${sanitizeFilenamePart(symbol)}_${safeName}_${suffix}.xlsx`;
+      const symbolPart = symbol === '*' ? 'כל_הסמלים' : sanitizeFilenamePart(symbol);
+      const filename = `שעות_סמל_${symbolPart}_${safeName}_${suffix}.xlsx`;
       downloadBlob(filename, blob);
       showAlert('success', 'הורד דוח "בדיקת שעות לסמל".');
     } catch (err) {
@@ -583,7 +584,7 @@ export default function EmployerActions() {
                 <p className="text-muted small mb-3">
                   {COMPARE_SUBTYPES.find((o) => o.key === 'institution-hours')?.description ??
                     'בדיקת שעות לפי סמל מוסד ושנת לימודים'}
-                  . בחרו שנת לימודים וסמל מוסד, ולחצו להורדת דוח Excel.
+                  . בחרו שנת לימודים וסמל מוסד (או כל הסמלים), ולחצו להורדת דוח Excel.
                 </p>
                 <form className="row g-3 align-items-end" onSubmit={handleInstitutionHoursSubmit}>
                   <div className="col-sm-6 col-md-4">
@@ -608,6 +609,7 @@ export default function EmployerActions() {
                       onChange={(e) => setCompareSymbol(e.target.value)}
                     >
                       <option value="">— בחר סמל —</option>
+                      <option value="*">כל הסמלים</option>
                       {institutionSymbols.map((s) => (
                         <option key={s.id ?? s.institutionSymbol} value={s.institutionSymbol}>
                           {s.institutionSymbolName

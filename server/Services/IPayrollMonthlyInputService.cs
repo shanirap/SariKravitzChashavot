@@ -21,9 +21,10 @@ namespace AccountingProject.Services
             int month);
 
         Task<PayrollMonthlyInputRowDto> UpdateRowAsync(
+            int employerId,
             int rowId,
             PayrollMonthlyInputRowEditDto dto);
 
-        Task DeleteRowAsync(int rowId);
+        Task DeleteRowAsync(int employerId, int rowId);
     }
 }

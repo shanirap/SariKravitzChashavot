@@ -19,8 +19,8 @@ public sealed class EmployeesPersonalReportTests
 
         using var wb = new XLWorkbook(new MemoryStream(bytes));
         var ws = wb.Worksheet("עובדים אישיים");
-        Assert.Equal("דנה", ws.Cell(2, 1).GetString());
-        Assert.Equal("לוי", ws.Cell(2, 2).GetString());
+        Assert.Equal("לוי", ws.Cell(2, 1).GetString());
+        Assert.Equal("דנה", ws.Cell(2, 2).GetString());
         Assert.Equal("987654321", ws.Cell(2, 3).GetString());
         Assert.Equal("מעסיק לדוח", ws.Cell(2, 7).GetString());
         Assert.Equal("פעיל", ws.Cell(2, 8).GetString());

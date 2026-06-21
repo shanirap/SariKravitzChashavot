@@ -28,11 +28,11 @@ function ProtectedShell() {
       <nav className="navbar navbar-expand-lg navbar-dark navbar-dark-custom">
         <div className="container-fluid px-4">
           <Link className="navbar-brand d-flex align-items-center gap-2" to="/">
-            <span style={{ background: '#fff', borderRadius: 12, padding: '8px 20px', display: 'inline-flex', alignItems: 'center' }}>
+            <span style={{ background: '#fff', borderRadius: 12, display: 'inline-flex', alignItems: 'center' }}>
               <img
                 src="/logo.png"
                 alt="שרי קרביץ"
-                style={{ height: 60, objectFit: 'contain' }}
+                style={{ height: 70, objectFit: 'contain' }}
               />
             </span>
           </Link>

@@ -195,7 +195,7 @@ public sealed class KindergartenSchoolAnnualReportTests
             Grade2DoubleDegree = 0.5m,
             Slots =
             [
-                new EmploymentDataSlot { GradeBand = 1, SlotIndex = 1, InstitutionSymbol = "G-1", WeeklyHours = 30m, JobBase = 28m },
+                new EmploymentDataSlot { GradeBand = 1, SlotIndex = 1, InstitutionSymbol = "G-1", WeeklyHours = 30m, JobBase = 30m },
                 new EmploymentDataSlot { GradeBand = 1, SlotIndex = 2, InstitutionSymbol = "G-1", WeeklyHours = 20m, JobBase = 18m },
                 new EmploymentDataSlot { GradeBand = 2, SlotIndex = 1, InstitutionSymbol = "S-1", WeeklyHours = 25m, JobBase = 22m },
                 new EmploymentDataSlot { GradeBand = 1, SlotIndex = 3, InstitutionSymbol = "O-1", WeeklyHours = 15m, JobBase = 14m },

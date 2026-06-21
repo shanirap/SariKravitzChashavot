@@ -213,11 +213,13 @@ namespace AccountingProject.Services
         }
 
         public async Task<PayrollMonthlyInputRowDto> UpdateRowAsync(
+            int employerId,
             int rowId,
             PayrollMonthlyInputRowEditDto dto)
         {
             var row = await _db.PayrollMonthlyInputRows
-                .FirstOrDefaultAsync(r => r.Id == rowId && !r.IsDeleted);
+                .FirstOrDefaultAsync(r =>
+                    r.Id == rowId && r.EmployerId == employerId && !r.IsDeleted);
             if (row == null)
                 throw new InvalidOperationException(RowNotFoundMessage);
 
@@ -228,10 +230,11 @@ namespace AccountingProject.Services
             return ToDto(row);
         }
 
-        public async Task DeleteRowAsync(int rowId)
+        public async Task DeleteRowAsync(int employerId, int rowId)
         {
             var row = await _db.PayrollMonthlyInputRows
-                .FirstOrDefaultAsync(r => r.Id == rowId && !r.IsDeleted);
+                .FirstOrDefaultAsync(r =>
+                    r.Id == rowId && r.EmployerId == employerId && !r.IsDeleted);
             if (row == null)
                 throw new InvalidOperationException(RowNotFoundMessage);
 

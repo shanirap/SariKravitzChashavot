@@ -46,7 +46,7 @@ namespace AccountingProject.Services
             var ws = wb.Worksheets.Add("עובדים");
             var headers = new[]
             {
-                "מזהה עובד", "ת.ז.", "שם פרטי", "שם משפחה", "שם מלא", "מספר עובד בעוקץ", "תאריך לידה", "מין", "טלפון",
+                "מזהה עובד", "ת.ז.", "שם משפחה", "שם פרטי", "שם מלא", "מספר עובד בעוקץ", "תאריך לידה", "מין", "טלפון",
                 "פעיל (מחושב)", "סטטוס פעילות ידני"
             };
             var childHeaders = Enumerable.Range(1, 10).Select(i => $"תאריך לידה ילד {i}").ToArray();
@@ -62,8 +62,8 @@ namespace AccountingProject.Services
                 var c = 1;
                 ws.Cell(r, c++).Value = e.Id;
                 ws.Cell(r, c++).Value = e.IdNumber;
-                ws.Cell(r, c++).Value = e.FirstName ?? "";
                 ws.Cell(r, c++).Value = e.LastName ?? "";
+                ws.Cell(r, c++).Value = e.FirstName ?? "";
                 ws.Cell(r, c++).Value = e.FullName;
                 if (e.EmployeeNumber.HasValue) ws.Cell(r, c).Value = e.EmployeeNumber.Value;
                 c++;

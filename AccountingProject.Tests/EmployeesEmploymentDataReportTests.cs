@@ -64,7 +64,7 @@ public sealed class EmployeesEmploymentDataReportTests
                     SlotIndex = 1,
                     InstitutionSymbol = "111",
                     WeeklyHours = 30m,
-                    JobBase = 28m,
+                    JobBase = 30m,
                 },
                 new EmploymentDataSlot
                 {
@@ -107,14 +107,14 @@ public sealed class EmployeesEmploymentDataReportTests
 
         foreach (var row in dataRows)
         {
-            Assert.Equal("רחל כהן", row.Cell(1).GetString());
+            Assert.Equal("כהן רחל", row.Cell(1).GetString());
             Assert.Equal(0m, row.Cell(12).GetValue<decimal>());
         }
 
         var slot111 = dataRows.Single(r => r.Cell(2).GetString() == "111");
         Assert.Equal("גננת", slot111.Cell(3).GetString());
         Assert.Equal(30m, slot111.Cell(4).GetValue<decimal>());
-        Assert.Equal(28m, slot111.Cell(5).GetValue<decimal>());
+        Assert.Equal(30m, slot111.Cell(5).GetValue<decimal>());
         Assert.Equal(100m, slot111.Cell(6).GetValue<decimal>());
         Assert.Equal(5m, slot111.Cell(7).GetValue<decimal>());
         Assert.Equal(2m, slot111.Cell(8).GetValue<decimal>());

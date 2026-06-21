@@ -15,11 +15,12 @@ public sealed class BulkImportEmployeeFieldsTests
     public void EmployeesTemplate_IncludesUketzEmployeeNumberColumn()
     {
         using var db = DbTestFactory.CreateContext();
-        using var wb = new BulkImportService(db, Microsoft.Extensions.Logging.Abstractions.NullLogger<BulkImportService>.Instance)
-            .BuildEmployeesTemplate(includeEmployerName: false);
+        using var wb = ServiceTestFactory.CreateBulkImportService(db)
+            .BuildEmployeesTemplate(includeEmployerName: true);
         var ws = wb.Worksheet("עובדים");
         var headers = ws.Row(1).CellsUsed().Select(c => c.GetString()).ToList();
         Assert.Contains("מספר_עובד_בעוקץ", headers);
+        Assert.Contains("חפ", headers);
         Assert.Contains("טל", headers);
         Assert.Contains("דרגה1_גמולי_השתלמות", headers);
         Assert.Contains("דרגה1_1_סמל_מוסד", headers);
@@ -42,7 +43,7 @@ public sealed class BulkImportEmployeeFieldsTests
             });
 
         var file = FormFileFromStream(stream, "import.xlsx");
-        var sut = new BulkImportService(db, Microsoft.Extensions.Logging.Abstractions.NullLogger<BulkImportService>.Instance);
+        var sut = ServiceTestFactory.CreateBulkImportService(db);
         var result = await sut.ImportEmployeesAsync(file);
 
         Assert.Equal(1, result.Imported);
@@ -70,7 +71,7 @@ public sealed class BulkImportEmployeeFieldsTests
             });
 
         var file = FormFileFromStream(stream, "import.xlsx");
-        var sut = new BulkImportService(db, Microsoft.Extensions.Logging.Abstractions.NullLogger<BulkImportService>.Instance);
+        var sut = ServiceTestFactory.CreateBulkImportService(db);
         var result = await sut.ImportEmployeesAsync(file);
 
         Assert.Equal(1, result.Imported);
@@ -93,7 +94,7 @@ public sealed class BulkImportEmployeeFieldsTests
             });
 
         var file = FormFileFromStream(stream, "import.xlsx");
-        var sut = new BulkImportService(db, Microsoft.Extensions.Logging.Abstractions.NullLogger<BulkImportService>.Instance);
+        var sut = ServiceTestFactory.CreateBulkImportService(db);
         var result = await sut.ImportEmployeesAsync(file);
 
         Assert.Equal(0, result.Imported);
@@ -131,7 +132,7 @@ public sealed class BulkImportEmployeeFieldsTests
         ms.Position = 0;
 
         var file = FormFileFromStream(ms, "legacy.xlsx");
-        var sut = new BulkImportService(db, Microsoft.Extensions.Logging.Abstractions.NullLogger<BulkImportService>.Instance);
+        var sut = ServiceTestFactory.CreateBulkImportService(db);
         var result = await sut.ImportEmployeesAsync(file);
 
         Assert.Equal(1, result.Imported);

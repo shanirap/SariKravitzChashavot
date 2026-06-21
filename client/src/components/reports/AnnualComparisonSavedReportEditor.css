@@ -1,0 +1,70 @@
+.annual-report-editor-table-wrap {
+  max-height: 70vh;
+  overflow: auto;
+}
+
+.annual-report-editor-table {
+  table-layout: fixed;
+  width: max-content;
+  min-width: 100%;
+}
+
+.annual-report-editor-table th,
+.annual-report-editor-table td {
+  vertical-align: top;
+  overflow: hidden;
+}
+
+.annual-report-editor-table th {
+  position: relative;
+  user-select: none;
+}
+
+.annual-report-editor-col-resizer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 2;
+}
+
+.annual-report-editor-col-resizer:hover,
+.annual-report-editor-col-resizer.is-active {
+  background: rgba(13, 110, 253, 0.25);
+}
+
+.annual-report-editor-cell-input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 2rem;
+  padding: 0.25rem 0.35rem;
+  border: 1px solid transparent;
+  border-radius: 0.25rem;
+  background: transparent;
+  resize: none;
+  overflow: hidden;
+  white-space: pre-wrap;
+  word-break: break-word;
+  field-sizing: content;
+  line-height: 1.35;
+  font-size: 0.875rem;
+}
+
+.annual-report-editor-cell-input:hover {
+  border-color: var(--bs-border-color);
+  background: var(--bs-body-bg);
+}
+
+.annual-report-editor-cell-input:focus {
+  border-color: var(--bs-primary);
+  background: var(--bs-body-bg);
+  outline: none;
+  box-shadow: 0 0 0 0.15rem rgba(13, 110, 253, 0.2);
+}
+
+.annual-report-editor-cell-input:disabled {
+  opacity: 0.75;
+}

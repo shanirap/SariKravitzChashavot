@@ -2,12 +2,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockGet = vi.fn();
 const mockPost = vi.fn();
+const mockPut = vi.fn();
+const mockDelete = vi.fn();
 
 vi.mock('axios', () => ({
   default: {
     create: () => ({
       get: mockGet,
       post: mockPost,
+      put: mockPut,
+      delete: mockDelete,
       interceptors: {
         request: { use: vi.fn() },
         response: { use: vi.fn() },
@@ -27,6 +31,8 @@ describe('reportsApi', () => {
   beforeEach(() => {
     mockGet.mockReset();
     mockPost.mockReset();
+    mockPut.mockReset();
+    mockDelete.mockReset();
   });
 
   it('kindergartenAnnual calls GET with params', async () => {
@@ -57,6 +63,14 @@ describe('reportsApi', () => {
     await reportsApi.institutionHours(1, 'תשפ"ו', 'G-1/A');
     expect(mockGet).toHaveBeenCalledWith('/reports/institution-hours', {
       params: { employerId: 1, academicYear: 'תשפ"ו', institutionSymbol: 'G-1/A' },
+      responseType: 'blob',
+    });
+  });
+
+  it('institutionHours supports all-symbols sentinel', async () => {
+    await reportsApi.institutionHours(1, 'תשפ"ו', '*');
+    expect(mockGet).toHaveBeenCalledWith('/reports/institution-hours', {
+      params: { employerId: 1, academicYear: 'תשפ"ו', institutionSymbol: '*' },
       responseType: 'blob',
     });
   });
@@ -97,6 +111,30 @@ describe('reportsApi', () => {
     expect(mockGet).toHaveBeenCalledWith('/reports/annual-comparison-saved', {
       params: { employerId: 8, academicYear: 'תשפ"ו' },
       responseType: 'blob',
+    });
+  });
+
+  it('annualComparisonSavedPreview calls GET preview endpoint', async () => {
+    await reportsApi.annualComparisonSavedPreview(8, 'תשפ"ו');
+    expect(mockGet).toHaveBeenCalledWith('/reports/annual-comparison-saved/preview', {
+      params: { employerId: 8, academicYear: 'תשפ"ו' },
+    });
+  });
+
+  it('saveAnnualComparisonOverrides PUTs rows payload', async () => {
+    const rows = [{ slotId: 1, fullName: 'Test' }];
+    await reportsApi.saveAnnualComparisonOverrides(8, 'תשפ"ו', rows);
+    expect(mockPut).toHaveBeenCalledWith('/reports/annual-comparison-saved/overrides', {
+      employerId: 8,
+      academicYear: 'תשפ"ו',
+      rows,
+    });
+  });
+
+  it('clearAnnualComparisonOverrides DELETEs with optional slotId', async () => {
+    await reportsApi.clearAnnualComparisonOverrides(8, 'תשפ"ו', 42);
+    expect(mockDelete).toHaveBeenCalledWith('/reports/annual-comparison-saved/overrides', {
+      params: { employerId: 8, academicYear: 'תשפ"ו', slotId: 42 },
     });
   });
 });

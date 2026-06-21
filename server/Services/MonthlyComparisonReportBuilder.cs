@@ -34,9 +34,11 @@ internal static class MonthlyComparisonReportBuilder
 
         "ת\"ז",
 
-        "שם פרטי+שם משפחה",
+        "שם משפחה+שם פרטי",
 
         "תפקיד",
+
+        "סוג משרה (מעוקץ)",
 
         "דרגה",
 
@@ -76,25 +78,27 @@ internal static class MonthlyComparisonReportBuilder
 
     private const int ColRole = 6;
 
-    private const int ColGrade = 7;
+    private const int ColSugMisraFromPayroll = 7;
 
-    private const int ColSeniority = 8;
+    private const int ColGrade = 8;
 
-    private const int ColHoursSum = 9;
+    private const int ColSeniority = 9;
 
-    private const int ColJobBase = 10;
+    private const int ColHoursSum = 10;
 
-    private const int ColJobPercent = 11;
+    private const int ColJobBase = 11;
 
-    private const int ColAgeHours = 12;
+    private const int ColJobPercent = 12;
 
-    private const int ColTrainingBenefits = 13;
+    private const int ColAgeHours = 13;
 
-    private const int ColDoubleDegree = 14;
+    private const int ColTrainingBenefits = 14;
 
-    private const int ColTrainingFund = 15;
+    private const int ColDoubleDegree = 15;
 
-    private const int ColDoubleGeneral = 16;
+    private const int ColTrainingFund = 16;
+
+    private const int ColDoubleGeneral = 17;
 
 
 
@@ -269,6 +273,8 @@ internal static class MonthlyComparisonReportBuilder
 
         SetText(ws, row, ColRole, v.Role);
 
+        SetText(ws, row, ColSugMisraFromPayroll, v.SugMisraFromPayroll);
+
         SetText(ws, row, ColGrade, v.Grade);
 
         SetText(ws, row, ColSeniority, v.Seniority);
@@ -305,13 +311,11 @@ internal static class MonthlyComparisonReportBuilder
 
         WriteCompareCell(ws, row, ColIdNumber, system.IdNumber, input.IdNumber);
 
-        WriteCompareCell(ws, row, ColName, system.Name, input.Name);
-
-        WriteCompareCell(ws, row, ColRole, system.Role, input.Role);
+        WriteCompareMonthlyJobType(ws, row, input.SugMisraFromPayroll);
 
         WriteCompareCell(ws, row, ColGrade, system.Grade, input.Grade);
 
-        WriteCompareCell(ws, row, ColSeniority, system.Seniority, input.Seniority);
+        WriteCompareCell(ws, row, ColSeniority, system.Seniority, input.Seniority, numeric: true);
 
         WriteCompareCell(ws, row, ColHoursSum, system.HoursSum, input.HoursSum, numeric: true);
 
@@ -362,6 +366,12 @@ internal static class MonthlyComparisonReportBuilder
     }
 
 
+
+    private static void WriteCompareMonthlyJobType(IXLWorksheet ws, int row, string? inputSugMisra)
+    {
+        var match = PayrollComparisonUploadSupport.IsMonthlyJobType(inputSugMisra);
+        ApplyCompareMark(ws.Cell(row, ColSugMisraFromPayroll), match);
+    }
 
     private static void WriteCompareDoubleGeneralCompare(IXLWorksheet ws, int row, string? inputRaw)
 
@@ -452,7 +462,9 @@ internal static class MonthlyComparisonReportBuilder
 
             TrainingFund: FormatDecimal(g1 ? ed.Grade1TrainingFundPercent : ed.Grade2TrainingFundPercent),
 
-            DoubleGeneral: FormatDecimal(0m));
+            DoubleGeneral: FormatDecimal(0m),
+
+            SugMisraFromPayroll: "");
 
     }
 
@@ -480,7 +492,7 @@ internal static class MonthlyComparisonReportBuilder
 
                 Symbol: "", EmployeeNumber: "", IdNumber: "", Name: "",
 
-                Role: "", Grade: "", Seniority: "",
+                Role: "", SugMisraFromPayroll: "", Grade: "", Seniority: "",
 
                 HoursSum: "", JobBase: "", JobPercent: "",
 
@@ -510,9 +522,11 @@ internal static class MonthlyComparisonReportBuilder
 
             IdNumber: NormalizeDisplay(tz),
 
-            Name: PayrollComparisonUploadSupport.GetCell(upload.Row, layout.ColFullName),
+            Name: "",
 
-            Role: PayrollComparisonUploadSupport.GetCell(upload.Row, layout.ColSugMisra),
+            Role: "",
+
+            SugMisraFromPayroll: PayrollComparisonUploadSupport.GetCell(upload.Row, layout.ColSugMisra),
 
             Grade: PayrollComparisonUploadSupport.GetCell(upload.Row, bandCols.Grade),
 
@@ -607,6 +621,8 @@ internal static class MonthlyComparisonReportBuilder
         string Name,
 
         string Role,
+
+        string SugMisraFromPayroll,
 
         string Grade,
 

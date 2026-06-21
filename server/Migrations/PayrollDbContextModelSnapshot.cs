@@ -22,6 +22,110 @@ namespace AccountingProject.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("AccountingProject.Models.AnnualComparisonReportRowOverride", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("מזהה");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AcademicYear")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("שנת_לימודים");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("נוצר_בתאריך");
+
+                    b.Property<decimal?>("DoubleGeneral")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("הכפלה_כללית");
+
+                    b.Property<int>("EmployerId")
+                        .HasColumnType("int")
+                        .HasColumnName("מזהה_מעסיק");
+
+                    b.Property<string>("FullName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("שם_מלא");
+
+                    b.Property<string>("Grade")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("דרגה");
+
+                    b.Property<string>("InstitutionSymbol")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("סמל_מוסד");
+
+                    b.Property<bool>("IsManualEdited")
+                        .HasColumnType("bit")
+                        .HasColumnName("נערך_ידנית");
+
+                    b.Property<decimal?>("JobBase")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("בסיס_משרה");
+
+                    b.Property<decimal?>("JobPercent")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("אחוז_משרה");
+
+                    b.Property<string>("ManualEditNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("הערת_עריכה");
+
+                    b.Property<string>("MonthCellsJson")
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("תאי_חודש_json");
+
+                    b.Property<string>("Role")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("תפקיד");
+
+                    b.Property<string>("Seniority")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("ותק");
+
+                    b.Property<int>("SlotId")
+                        .HasColumnType("int")
+                        .HasColumnName("מזהה_מקטע");
+
+                    b.Property<string>("SugMisraFromPayroll")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("סוג_משרה_מעוקץ");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("עודכן_בתאריך");
+
+                    b.Property<decimal?>("WeeklyHours")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("שעות_שבועיות");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SlotId");
+
+                    b.HasIndex("EmployerId", "AcademicYear", "SlotId")
+                        .IsUnique();
+
+                    b.ToTable("דריסות_דוח_השוואה_שנתי");
+                });
+
             modelBuilder.Entity("AccountingProject.Models.AuditLog", b =>
                 {
                     b.Property<int>("Id")
@@ -717,6 +821,25 @@ namespace AccountingProject.Migrations
                         .IsUnique();
 
                     b.ToTable("Users");
+                });
+
+            modelBuilder.Entity("AccountingProject.Models.AnnualComparisonReportRowOverride", b =>
+                {
+                    b.HasOne("AccountingProject.Models.Employer", "Employer")
+                        .WithMany()
+                        .HasForeignKey("EmployerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AccountingProject.Models.EmploymentDataSlot", "Slot")
+                        .WithMany()
+                        .HasForeignKey("SlotId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Employer");
+
+                    b.Navigation("Slot");
                 });
 
             modelBuilder.Entity("AccountingProject.Models.Employee", b =>

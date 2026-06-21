@@ -1,0 +1,25 @@
+/* רחב יותר מ-modal-xl, אך עדיין מודאל מרכזי — לא fullscreen */
+.payroll-rows-editor-dialog {
+  max-width: min(1600px, 96vw);
+  width: 96vw;
+  margin: 1rem auto;
+}
+
+.payroll-rows-editor-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.payroll-rows-editor-table {
+  width: 100%;
+  table-layout: auto;
+  white-space: nowrap;
+  font-size: 0.8125rem;
+  margin-bottom: 0;
+}
+
+.payroll-rows-editor-table th,
+.payroll-rows-editor-table td {
+  padding: 0.35rem 0.5rem;
+  vertical-align: middle;
+}

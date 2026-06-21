@@ -40,7 +40,7 @@ internal static class MonthlyComparisonUploadWorkbook
         ws.Cell(dataRow, col++).Value = month;
         if (includeYearColumn)
             ws.Cell(dataRow, col++).Value = year;
-        ws.Cell(dataRow, col++).Value = "גננת";
+        ws.Cell(dataRow, col++).Value = "משרה חודשית";
 
         var builder = new MonthlyComparisonUploadRowBuilder(ws, dataRow, col);
         configureRow?.Invoke(builder);
@@ -95,7 +95,7 @@ internal sealed class MonthlyComparisonUploadRowBuilder(IXLWorksheet ws, int dat
         string seniority = "5",
         decimal jobPercent = 100m,
         decimal misra1Hours = 30m,
-        decimal misra1Base = 28m,
+        decimal misra1Base = 30m,
         decimal misra2Hours = 0m,
         decimal misra2Base = 0m,
         decimal ageHours = 2m,

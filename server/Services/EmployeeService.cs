@@ -93,6 +93,9 @@ namespace AccountingProject.Services
             if (!await _db.Employers.AnyAsync(e => e.Id == dto.EmployerId))
                 throw new InvalidOperationException("המעסיק לא נמצא במערכת.");
 
+            if (dto.EmployerId != employee.EmployerId)
+                throw new InvalidOperationException("לא ניתן לשנות את המעסיק של עובד קיים.");
+
             Apply(employee, dto);
             await SaveChangesOrThrowDuplicateEmployeeAsync();
             return true;

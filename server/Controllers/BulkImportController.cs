@@ -31,6 +31,7 @@ namespace AccountingProject.Controllers
         // POST /api/bulk-import/employees
         // ════════════════════════════════════════════
         [HttpPost("employees")]
+        [AdminWrite]
         [RequestSizeLimit(ExcelUploadRules.BulkImportMaxBytes)]
         public async Task<IActionResult> ImportEmployees(IFormFile file)
         {
@@ -61,6 +62,7 @@ namespace AccountingProject.Controllers
         }
 
         [HttpPost("employers/{employerId:int}/employees")]
+        [AdminWrite]
         [RequestSizeLimit(ExcelUploadRules.BulkImportMaxBytes)]
         public async Task<IActionResult> ImportEmployeesForEmployer(int employerId, IFormFile file)
         {
@@ -94,6 +96,7 @@ namespace AccountingProject.Controllers
         // POST /api/bulk-import/employers
         // ════════════════════════════════════════════
         [HttpPost("employers")]
+        [AdminWrite]
         [RequestSizeLimit(ExcelUploadRules.BulkImportMaxBytes)]
         public async Task<IActionResult> ImportEmployers(IFormFile file)
         {

@@ -321,11 +321,8 @@ namespace AccountingProject.Services
                 .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
         }
 
-        private static string CanonAcademicYear(string? stored)
-        {
-            var n = HebrewAcademicYear.Normalize(stored?.Trim());
-            return string.IsNullOrWhiteSpace(n) ? (stored ?? "").Trim() : n.Trim();
-        }
+        private static string CanonAcademicYear(string? stored) =>
+            HebrewAcademicYear.CanonicalForComparison(stored);
 
         private static string MonthColumnLabel(int month, int gregorianYear) => $"{month}.{gregorianYear}";
 

@@ -1,4 +1,5 @@
 using AccountingProject.Contracts;
+using AccountingProject.Infrastructure;
 using AccountingProject.Models;
 using AccountingProject.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -48,6 +49,7 @@ namespace AccountingProject.Controllers
         }
 
         [HttpPost]
+        [AdminWrite]
         public async Task<IActionResult> Create([FromBody] EmployeeDto dto)
         {
             var validationMessage = ValidateRequiredEmployeeFields(dto);
@@ -79,6 +81,7 @@ namespace AccountingProject.Controllers
         }
 
         [HttpDelete("{id}")]
+        [AdminWrite]
         public async Task<IActionResult> Delete(int id)
         {
             var result = await _employeeService.DeleteAsync(id);
@@ -88,6 +91,7 @@ namespace AccountingProject.Controllers
         }
 
         [HttpPut("{id}")]
+        [AdminWrite]
         public async Task<IActionResult> Update(int id, [FromBody] EmployeeDto dto)
         {
             var validationMessage = ValidateRequiredEmployeeFields(dto);
@@ -121,6 +125,7 @@ namespace AccountingProject.Controllers
         }
 
         [HttpPatch("{id}/active-status")]
+        [AdminWrite]
         public async Task<IActionResult> UpdateActiveStatus(int id, [FromBody] UpdateEmployeeStatusDto dto)
         {
             try

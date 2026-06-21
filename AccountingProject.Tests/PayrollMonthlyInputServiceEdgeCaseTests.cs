@@ -149,22 +149,69 @@ public sealed class PayrollMonthlyInputServiceEdgeCaseTests
     public async Task UpdateRowAsync_UnknownRow_ThrowsRowNotFound()
     {
         await using var db = DbTestFactory.CreateContext();
+        var employer = await ReportTestData.SeedEmployerAsync(db);
         var service = new PayrollMonthlyInputService(db, new EdgeTestUser());
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.UpdateRowAsync(999999, new PayrollMonthlyInputRowEditDto { Role = "x" }));
+            service.UpdateRowAsync(employer.Id, 999999, new PayrollMonthlyInputRowEditDto { Role = "x" }));
 
         Assert.Equal("שורת קלט עוקץ חודשי לא נמצאה.", ex.Message);
+    }
+
+    [Fact]
+    public async Task UpdateRowAsync_RowBelongsToOtherEmployer_ThrowsRowNotFound()
+    {
+        await using var db = DbTestFactory.CreateContext();
+        var employerA = await ReportTestData.SeedEmployerAsync(db, "Employer A");
+        var employerB = await ReportTestData.SeedEmployerAsync(db, "Employer B");
+        var now = DateTime.UtcNow;
+        var batch = new PayrollMonthlyInputBatch
+        {
+            EmployerId = employerA.Id,
+            AcademicYear = Year,
+            Month = Month,
+            GregorianYear = 2025,
+            OriginalFileName = "seed.xlsx",
+            UploadedAtUtc = now,
+            RowsCount = 1,
+            IsActive = true,
+            CreatedAtUtc = now,
+        };
+        db.PayrollMonthlyInputBatches.Add(batch);
+        await db.SaveChangesAsync();
+        var row = new PayrollMonthlyInputRow
+        {
+            BatchId = batch.Id,
+            EmployerId = employerA.Id,
+            AcademicYear = Year,
+            Month = Month,
+            GregorianYear = 2025,
+            IdNumber = "123456789",
+            FullName = "Worker",
+            CreatedAtUtc = now,
+        };
+        db.PayrollMonthlyInputRows.Add(row);
+        await db.SaveChangesAsync();
+
+        var service = new PayrollMonthlyInputService(db, new EdgeTestUser());
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.UpdateRowAsync(employerB.Id, row.Id, new PayrollMonthlyInputRowEditDto { Role = "x" }));
+
+        Assert.Equal("שורת קלט עוקץ חודשי לא נמצאה.", ex.Message);
+        var unchanged = await db.PayrollMonthlyInputRows.FindAsync(row.Id);
+        Assert.False(unchanged!.IsDeleted);
+        Assert.Null(unchanged.Role);
     }
 
     [Fact]
     public async Task DeleteRowAsync_UnknownRow_ThrowsRowNotFound()
     {
         await using var db = DbTestFactory.CreateContext();
+        var employer = await ReportTestData.SeedEmployerAsync(db);
         var service = new PayrollMonthlyInputService(db, new EdgeTestUser());
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.DeleteRowAsync(888888));
+            service.DeleteRowAsync(employer.Id, 888888));
 
         Assert.Equal("שורת קלט עוקץ חודשי לא נמצאה.", ex.Message);
     }

@@ -40,6 +40,23 @@ describe('employersApi', () => {
     expect(mockGet).toHaveBeenCalledWith('/employers', { params: { search: 'גן' } });
   });
 
+  it('getEmployees passes active and institution filters', async () => {
+    await employersApi.getEmployees(4, {
+      page: 1,
+      pageSize: 50,
+      isActive: true,
+      institutionSymbol: 'G-1',
+    });
+    expect(mockGet).toHaveBeenCalledWith('/employers/4/employees', {
+      params: {
+        page: 1,
+        pageSize: 50,
+        isActive: true,
+        institutionSymbol: 'G-1',
+      },
+    });
+  });
+
   it('getEmployeeByIdNumber encodes special characters in path', async () => {
     await employersApi.getEmployeeByIdNumber(5, '12/34 56');
     expect(mockGet).toHaveBeenCalledWith(

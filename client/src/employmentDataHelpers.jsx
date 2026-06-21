@@ -1,14 +1,22 @@
+export const UNIFIED_EDUCATION_SUPPORT_GRADE_NAME = 'אחיד/תומכות חינוך';
+export const LEGACY_UNIFIED_GRADE_NAME = 'אחיד';
+
+export function normalizeGradeName(gradeName) {
+  const gn = String(gradeName ?? '').trim();
+  return gn === LEGACY_UNIFIED_GRADE_NAME ? UNIFIED_EDUCATION_SUPPORT_GRADE_NAME : gn;
+}
+
 export const GRADE_OPTIONS = {
-  'יסודי וגנים': ['ב', 'בכיר', 'גננת מוסמכת', 'ד"ר', 'מ.א.', 'מורה מוסמך'],
-  'אחיד': ['תומכת חינוך', 'תומכת חינוך חנ"מ'],
-  'עוז לתמורה': ['ב', 'בכיר', 'גננת מוסמכת', 'ד"ר', 'מ.א.', 'מורה מוסמך'],
+  'יסודי וגנים': ['ב', 'בכיר', 'גננת מוסמכת', 'ד"ר', 'מ.א.', 'ב.א.', 'מורה מוסמך'],
+  [UNIFIED_EDUCATION_SUPPORT_GRADE_NAME]: ['תומכת חינוך', 'תומכת חינוך חנ"מ'],
+  'עוז לתמורה': ['ב', 'בכיר', 'גננת מוסמכת', 'ד"ר', 'מ.א.', 'ב.א.', 'מורה מוסמך'],
   'אופק חדש': ['1', '1.5', '2', '2.5', '3', '3.5', '4', '4.5', '5', '5.5', '6', '6.5', '7', '7.5', '8', '8.5', '9'],
   'אופק גנים': ['1', '1.5', '2', '2.5', '3', '3.5', '4', '4.5', '5', '5.5', '6', '6.5', '7', '7.5', '8', '8.5', '9'],
 };
 
 export const ROLE_OPTIONS = {
   'יסודי וגנים': ['גננת ראשית', 'גננת משלימה', 'גננת שילוב', 'מורה מחנך', 'מורה מקצועי', 'מנהל'],
-  'אחיד': ['סייעת ראשית', 'סייעת משלימה', 'סייעת שניה'],
+  [UNIFIED_EDUCATION_SUPPORT_GRADE_NAME]: ['סייעת ראשית', 'סייעת משלימה', 'סייעת שניה'],
   'עוז לתמורה': ['מורה מחנך', 'מורה מקצועי', 'מנהל'],
   'אופק חדש': ['גננת ראשית', 'גננת משלימה', 'גננת שילוב', 'מורה מחנך', 'מורה מקצועי', 'מנהל', 'פרא רפואי'],
   'אופק גנים': ['גננת ראשית', 'גננת עמיתה', 'פרא רפואי'],
@@ -19,8 +27,7 @@ export const GRADE_NAMES = Object.keys(GRADE_OPTIONS);
 /** אחוז תוספת אם לפי שם דירוג (לאחר מתקיימות ההתניות) */
 export const MOTHER_BENEFIT_RATE_BY_GRADE_NAME = {
   'יסודי וגנים': 10,
-  אחיד: 7,
-  'עוז לתמורה': 10,
+  'עוז לתמורה': 7,
   'אופק חדש': 10,
   'אופק גנים': 10,
 };
@@ -31,30 +38,40 @@ export const EMPLOYMENT_MOTHER_BENEFIT_BASE_JOB_PERCENT_THRESHOLD = 79;
 /** בסיס משרה ברירת מחדל לפי שם דירוג (מוסד) — תואם לטבלת התניות */
 export const DEFAULT_JOB_BASE_BY_GRADE_NAME = {
   'יסודי וגנים': 30,
-  אחיד: 40,
+  [UNIFIED_EDUCATION_SUPPORT_GRADE_NAME]: 40,
   'עוז לתמורה': 38,
   'אופק חדש': 36,
   'אופק גנים': 36,
 };
 
-/** ערכי בסיס משרה לפי תפקיד (מחליפים ברירת מחדל לפי מוסד). פרא רפואי תלוי מוסד — ראו getJobBaseValue */
+/** ערכי בסיס משרה לפי תפקיד (מחליפים ברירת מחדל לפי מוסד) */
 export const JOB_BASE_BY_ROLE = {
   'גננת ראשית': 30,
   'גננת עמיתה': 33.8,
 };
 
+/** בסיס משרה לפי תפקיד — אופק גנים בלבד */
+export const JOB_BASE_BY_OFek_GANIM_ROLE = {
+  'גננת ראשית': 30.4,
+  'גננת עמיתה': 33.8,
+  'פרא רפואי': 33.8,
+};
+
 /**
- * ערך בסיס משרה: מתמלא רק אחרי בחירת תפקיד — קודם התנות תפקיד (כולל פרא רפואי לפי מוסד), אחרת לפי מוסד.
+ * ערך בסיס משרה: מתמלא רק אחרי בחירת תפקיד — קודם מפת אופק גנים לפי תפקיד, אחרת לפי תפקיד כללי, אחרת לפי מוסד.
  * @param {string} gradeName
  * @param {string} [role]
  * @returns {string} — מספר כמחרוזת לשדה טופס, או '' בלי שם דירוג / בלי תפקיד
  */
 export function getJobBaseValue(gradeName, role) {
-  const gn = String(gradeName ?? '').trim();
+  const gn = normalizeGradeName(gradeName);
   const r = String(role ?? '').trim();
   if (!gn || !r) return '';
-  if (r === 'פרא רפואי' && gn === 'אופק גנים') {
-    return '33.8';
+  if (
+    gn === 'אופק גנים' &&
+    Object.prototype.hasOwnProperty.call(JOB_BASE_BY_OFek_GANIM_ROLE, r)
+  ) {
+    return String(JOB_BASE_BY_OFek_GANIM_ROLE[r]);
   }
   if (Object.prototype.hasOwnProperty.call(JOB_BASE_BY_ROLE, r)) {
     return String(JOB_BASE_BY_ROLE[r]);
@@ -66,7 +83,7 @@ export function getJobBaseValue(gradeName, role) {
 }
 
 /**
- * בסיס משרה נטו: בסיס גולמי לפי התניות פחות שעות גיל (מספר באותה דרגה).
+ * בסיס משרה לחישוב אחוז משרה: בסיס גולמי פחות שעות גיל (לא לשמירה בשדה jobBase).
  */
 export function netJobBaseAfterAgeHours(nominalStr, ageHoursRaw) {
   const grossStr = String(nominalStr ?? '').trim();
@@ -80,21 +97,20 @@ export function netJobBaseAfterAgeHours(nominalStr, ageHoursRaw) {
 }
 
 /**
- * מעדכן את jobBase בכל 6 מקטעי הדרגה (band 1|2) לפי שם דירוג, תפקיד ושעות גיל של אותה דרגה.
+ * מעדכן את jobBase בכל 6 מקטעי הדרגה (band 1|2) לפי שם דירוג ותפקיד — בסיס גולמי.
  */
-export function withBandSlotsJobBase(slots, band, gradeName, role, ageHoursRaw) {
+export function withBandSlotsJobBase(slots, band, gradeName, role) {
   if (!Array.isArray(slots)) return slots;
   const start = (band - 1) * 6;
-  const nominal = getJobBaseValue(gradeName, role);
-  const jbv = netJobBaseAfterAgeHours(nominal, ageHoursRaw);
+  const jbv = getJobBaseValue(gradeName, role);
   return slots.map((s, i) => (i >= start && i < start + 6 ? { ...s, jobBase: jbv } : s));
 }
 
-/** מחיל בסיס משרה (נטו) על כל המקטעים לפי דירוג/תפקיד/שעות גיל, ומסנכרן שורות תוספת למחנך */
+/** מחיל בסיס משרה גולמי על כל המקטעים לפי דירוג/תפקיד, ומסנכרן שורות תוספת למחנך */
 export function patchEmploymentSlotJobBases(form) {
   let slots = form.slots || initSlots();
-  slots = withBandSlotsJobBase(slots, 1, form.grade1GradeName, form.grade1Role, form.grade1AgeHours);
-  slots = withBandSlotsJobBase(slots, 2, form.grade2GradeName, form.grade2Role, form.grade2AgeHours);
+  slots = withBandSlotsJobBase(slots, 1, form.grade1GradeName, form.grade1Role);
+  slots = withBandSlotsJobBase(slots, 2, form.grade2GradeName, form.grade2Role);
   slots = syncTeacherSupplementarySlots(slots, form);
   return { ...form, slots };
 }
@@ -168,6 +184,30 @@ export function generateAcademicYearOptions(yearsBack = 7, yearsForward = 7) {
 
 /** טווח 7+1+7 — משמש ב־EmployerActions (הנפקת דוחות והשוואה). */
 export const REPORT_ACADEMIC_YEAR_OPTIONS = generateAcademicYearOptions(7, 7);
+
+const HEBREW_YEAR_LETTER_VALUES = Object.fromEntries(HEBREW_YEAR_PARTS.map(([v, l]) => [l, v]));
+
+/** Gregorian year of September starting the school year labeled by Hebrew academic year (e.g. תשפ"ו). */
+export function parseSeptemberGregorianYear(hebrewYear) {
+  const s = String(hebrewYear ?? '').trim();
+  if (!s) return null;
+  let sum = 0;
+  for (const ch of s) {
+    if (Object.prototype.hasOwnProperty.call(HEBREW_YEAR_LETTER_VALUES, ch)) {
+      sum += HEBREW_YEAR_LETTER_VALUES[ch];
+    }
+  }
+  if (sum === 0) return null;
+  return 5000 + sum - 3761;
+}
+
+/** 1 September of the school year for the given Hebrew academic year label. */
+export function academicYearStartRefDate(academicYear) {
+  const yearLabel = String(academicYear ?? '').trim() || currentHebrewAcademicYear();
+  const sepYear = parseSeptemberGregorianYear(yearLabel);
+  if (sepYear == null) return new Date();
+  return new Date(sepYear, 8, 1, 12, 0, 0);
+}
 
 /** מפתחות שדות דירוג לפי רמת דרגה (1 / 2) */
 export function bandFieldKeys(band) {
@@ -381,18 +421,18 @@ export function patchEmploymentAutoAgeHours(form) {
 }
 
 /**
- * בסיס משוקלל (הרמוני) מהמקטעים: Σ ש"ש / Σ(ש"ש/בסיס) — מתאים לכמה בסיסים שונים; במקטע יחיד = אותו בסיס.
+ * בסיס משוקלל (הרמוני) לחישוב אחוז משרה: Σ ש"ש / Σ(ש"ש/(בסיס−שעות_גיל)).
  */
-export function effectiveHarmonicJobBaseFromSlots(slotRows) {
+export function effectiveHarmonicJobBaseFromSlots(slotRows, ageHoursRaw) {
   if (!slotRows?.length) return null;
   let sumW = 0;
   let sumWOverB = 0;
   for (const row of slotRows) {
     const w = N(row.weeklyHours);
-    const b = N(row.jobBase);
-    if (w == null || w <= 0 || b == null || b <= 0) continue;
+    const netBase = N(netJobBaseAfterAgeHours(row.jobBase, ageHoursRaw));
+    if (w == null || w <= 0 || netBase == null || netBase <= 0) continue;
     sumW += w;
-    sumWOverB += w / b;
+    sumWOverB += w / netBase;
   }
   if (sumW <= 0 || sumWOverB <= 0) return null;
   return sumW / sumWOverB;
@@ -403,9 +443,10 @@ export function effectiveHarmonicJobBaseFromSlots(slotRows) {
  */
 export function computeGradeBaseJobPercentNumber(form, band) {
   const totalKey = band === 1 ? 'grade1Total' : 'grade2Total';
+  const ageKey = band === 1 ? 'grade1AgeHours' : 'grade2AgeHours';
   const slotsSlice =
     band === 1 ? (form.slots || []).slice(0, 6) : (form.slots || []).slice(6, 12);
-  const equiv = effectiveHarmonicJobBaseFromSlots(slotsSlice);
+  const equiv = effectiveHarmonicJobBaseFromSlots(slotsSlice, form[ageKey]);
   const total = N(form[totalKey]);
   if (equiv == null || equiv <= 0) return null;
   if (total == null || Number.isNaN(total)) return null;
@@ -415,22 +456,25 @@ export function computeGradeBaseJobPercentNumber(form, band) {
 }
 
 /**
- * תוספת אם אוטומטית: רק נקבה + דירוג ממפתחות + אחוז משרה בסיסי מעלי 79% + ילד עד גיל 14 כולל; אחרת 0.
+ * תוספת אם אוטומטית (תואם לשרת): נקבה + ילד ≤14 (ב-1/9) + דירוג במפתחות + משרה בסיסית מעלי 79%; אחרת 0.
+ * שם דירוג ריק / לא במפה → מחרוזת ריקה (null ב-API).
  */
 export function computeMotherBenefitPercentString(form, band) {
   const keys = bandFieldKeys(band);
-  const gn = String(form[keys.gradeName] ?? '').trim();
+  const gn = normalizeGradeName(form[keys.gradeName]);
   if (!gn) return '';
+  if (gn === UNIFIED_EDUCATION_SUPPORT_GRADE_NAME) return '0';
   if (!Object.prototype.hasOwnProperty.call(MOTHER_BENEFIT_RATE_BY_GRADE_NAME, gn)) return '';
   const gender = String(form?.gender ?? form?.employeeGender ?? '').trim();
   if (!(gender === 'נקבה' || gender.toLowerCase() === 'female')) return '0';
 
+  const refDate = academicYearStartRefDate(form?.academicYear);
+  if (!employmentFormHasChildUpToAgeInclusive(form, 14, refDate)) return '0';
+
   const basePct = computeGradeBaseJobPercentNumber(form, band);
-  if (basePct == null) return '';
+  if (basePct == null) return '0';
 
   if (basePct <= EMPLOYMENT_MOTHER_BENEFIT_BASE_JOB_PERCENT_THRESHOLD) return '0';
-
-  if (!employmentFormHasChildUpToAgeInclusive(form)) return '0';
 
   return String(MOTHER_BENEFIT_RATE_BY_GRADE_NAME[gn]);
 }
@@ -449,9 +493,10 @@ export function patchEmploymentAutoMotherBenefit(form) {
 export function computeGradeJobPercentString(form, band) {
   const totalKey = band === 1 ? 'grade1Total' : 'grade2Total';
   const motherKey = band === 1 ? 'grade1MotherBenefitPercent' : 'grade2MotherBenefitPercent';
+  const ageKey = band === 1 ? 'grade1AgeHours' : 'grade2AgeHours';
   const slotsSlice =
     band === 1 ? (form.slots || []).slice(0, 6) : (form.slots || []).slice(6, 12);
-  const equiv = effectiveHarmonicJobBaseFromSlots(slotsSlice);
+  const equiv = effectiveHarmonicJobBaseFromSlots(slotsSlice, form[ageKey]);
   const total = N(form[totalKey]);
   const momRaw = N(form[motherKey]);
   const mom = momRaw == null || Number.isNaN(momRaw) ? 0 : momRaw;
@@ -514,19 +559,19 @@ export function parseSeniorityYears(raw) {
 
 /**
  * אחוז קרן השתלמות לפי שם דירוג ואחוז משרה:
- * פחות משליש משרה → 0; יסודי / עוז לתמורה / אופקים — מעל שליש → 8.4%; באחיד מעל שליש — ותק>2 ⇒ 7.5%, אחרת 0.
+ * פחות משליש משרה → 0; יסודי / עוז לתמורה / אופקים — מעל שליש → 8.4%; באחיד מעל שליש — ותק≥2 ⇒ 7.5%, אחרת 0.
  */
 export function computeTrainingFundPercentString(form, band) {
   const keys = bandFieldKeys(band);
-  const gn = String(form[keys.gradeName] ?? '').trim();
+  const gn = normalizeGradeName(form[keys.gradeName]);
   const jobKey = band === 1 ? 'grade1JobPercent' : 'grade2JobPercent';
   const jobPct = N(form[jobKey]);
   if (!gn || jobPct == null || Number.isNaN(jobPct)) return '';
   if (jobPct < EMPLOYMENT_ONE_THIRD_JOB_PERCENT - 1e-9) return '0';
 
-  if (gn === 'אחיד') {
+  if (gn === UNIFIED_EDUCATION_SUPPORT_GRADE_NAME) {
     const vetek = parseSeniorityYears(form[keys.seniority]);
-    if (vetek != null && vetek > 2) return '7.5';
+    if (vetek != null && vetek >= 2) return '7.5';
     return '0';
   }
 
@@ -796,13 +841,14 @@ export function EmploymentDataFormSections({
   const bandRow = (band) => {
     const k = bandFieldKeys(band);
     const gn = form[k.gradeName] ?? '';
+    const normalizedGn = normalizeGradeName(gn);
     return (
       <div className="row g-2 mb-2">
         <div className="col-md-3 col-6">
           <label className="form-label small mb-0">שם הדירוג</label>
           <select
             className="form-select form-select-sm"
-            value={gn}
+            value={normalizedGn}
             onChange={setBandField(band, 'gradeName')}
           >
             <option value=""></option>
@@ -822,7 +868,7 @@ export function EmploymentDataFormSections({
             disabled={!gn}
           >
             <option value=""></option>
-            {(GRADE_OPTIONS[gn] || []).map((grade) => (
+            {(GRADE_OPTIONS[normalizedGn] || []).map((grade) => (
               <option key={grade} value={grade}>
                 {grade}
               </option>
@@ -838,7 +884,7 @@ export function EmploymentDataFormSections({
             disabled={!gn}
           >
             <option value=""></option>
-            {(ROLE_OPTIONS[gn] || []).map((role) => (
+            {(ROLE_OPTIONS[normalizedGn] || []).map((role) => (
               <option key={role} value={role}>
                 {role}
               </option>
@@ -851,7 +897,7 @@ export function EmploymentDataFormSections({
             type="number"
             className="form-control form-control-sm"
             min="0"
-            step="1"
+            step="0.01"
             value={form[k.seniority] ?? ''}
             onChange={setBandField(band, 'seniority')}
           />

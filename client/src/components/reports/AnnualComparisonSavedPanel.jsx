@@ -4,6 +4,7 @@ import { REPORT_ACADEMIC_YEAR_OPTIONS } from '../../employmentDataHelpers';
 import { parseApiErrorMessage } from '../../utils/apiErrorMessage';
 import { formatDateDDMMYYYYForFilename } from '../../utils/dateFormat';
 import PayrollMonthlyRowsEditor from './PayrollMonthlyRowsEditor';
+import AnnualComparisonSavedReportEditor from './AnnualComparisonSavedReportEditor';
 
 const ACADEMIC_YEAR_OPTIONS = REPORT_ACADEMIC_YEAR_OPTIONS;
 const XLSX_ACCEPT = '.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -77,6 +78,7 @@ export default function AnnualComparisonSavedPanel({ employerId }) {
   const [generating, setGenerating] = useState(false);
   const [alert, setAlert] = useState(null);
   const [editorMonth, setEditorMonth] = useState(null);
+  const [reportEditorOpen, setReportEditorOpen] = useState(false);
   const fileInputRefs = useRef({});
 
   const showAlert = useCallback((type, msg) => {
@@ -190,8 +192,18 @@ export default function AnnualComparisonSavedPanel({ employerId }) {
     }
   };
 
+  const openReportEditor = () => {
+    const year = String(academicYear ?? '').trim();
+    if (!year) {
+      showAlert('warning', 'יש לבחור שנת לימודים.');
+      return;
+    }
+    setReportEditorOpen(true);
+  };
+
   const uploadInProgress = uploadingMonth != null;
   const editorOpen = editorMonth != null;
+  const anyEditorOpen = editorOpen || reportEditorOpen;
 
   return (
     <>
@@ -246,12 +258,21 @@ export default function AnnualComparisonSavedPanel({ employerId }) {
               ))}
             </select>
           </div>
-          <div className="col-sm-6 col-md-8 d-grid d-md-block">
+          <div className="col-sm-6 col-md-8 d-flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="btn btn-outline-primary px-4"
+              onClick={openReportEditor}
+              disabled={generating || statusLoading || uploadInProgress || anyEditorOpen || !employerId}
+            >
+              <i className="bi bi-pencil-square me-2"></i>
+              פתח דוח לעריכה
+            </button>
             <button
               type="button"
               className="btn btn-primary px-4"
               onClick={handleGenerateReport}
-              disabled={generating || statusLoading || uploadInProgress || !employerId}
+              disabled={generating || statusLoading || uploadInProgress || anyEditorOpen || !employerId}
             >
               {generating ? (
                 <>
@@ -261,7 +282,7 @@ export default function AnnualComparisonSavedPanel({ employerId }) {
               ) : (
                 <>
                   <i className="bi bi-download me-2"></i>
-                  הפק דוח השוואה שנתי
+                  ייצוא לאקסל
                 </>
               )}
             </button>
@@ -303,7 +324,7 @@ export default function AnnualComparisonSavedPanel({ employerId }) {
                   const isUploading = uploadingMonth === row.month;
                   const isMissing = row.status === STATUS_MISSING;
                   const isCaptured = row.status === STATUS_CAPTURED;
-                  const actionsDisabled = isUploading || generating || uploadInProgress || editorOpen;
+                  const actionsDisabled = isUploading || generating || uploadInProgress || anyEditorOpen;
 
                   return (
                     <tr key={`${row.month}-${row.gregorianYear}`}>
@@ -415,6 +436,15 @@ export default function AnnualComparisonSavedPanel({ employerId }) {
         academicYear={academicYear.trim()}
         month={editorMonth}
         onClose={() => setEditorMonth(null)}
+        onSaved={() => loadStatus({ silent: true })}
+      />
+    )}
+
+    {reportEditorOpen && (
+      <AnnualComparisonSavedReportEditor
+        employerId={employerId}
+        academicYear={academicYear.trim()}
+        onClose={() => setReportEditorOpen(false)}
         onSaved={() => loadStatus({ silent: true })}
       />
     )}

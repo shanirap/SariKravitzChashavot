@@ -14,8 +14,9 @@ internal static class AnnualComparisonReportBuilder
     private static readonly string[] StaticHeaders =
     [
         "סמל מוסד",
-        "שם פרטי+שם משפחה",
+        "שם משפחה+שם פרטי",
         "תפקיד",
+        "סוג משרה (מעוקץ)",
         "דרגה",
         "ותק",
         "ש\"ש",
@@ -38,8 +39,8 @@ internal static class AnnualComparisonReportBuilder
                     ?? throw new InvalidOperationException("בחוברת Excel אין גיליונות נתונים.");
 
         int sepYear;
-        try { sepYear = parseSeptemberGregorianYear(academicYear); }
-        catch { sepYear = DateTime.UtcNow.Year - 1; }
+        if (!HebrewAcademicYear.TryParseSeptemberGregorianYear(academicYear, out sepYear))
+            throw new InvalidOperationException(HebrewAcademicYear.InvalidMessage);
 
         var monthSequence = SchoolYearGregorian.GetSchoolYearMonthSequence(sepYear);
         var layout = PayrollComparisonUploadSupport.ParseLayout(sheet);
@@ -55,16 +56,19 @@ internal static class AnnualComparisonReportBuilder
         IReadOnlyList<EmploymentData> records,
         IReadOnlyList<(int Month, int GregorianYear)> monthSequence,
         IReadOnlyList<PayrollMonthlyInputBatch> activeBatches,
-        IReadOnlyList<PayrollComparisonInputRow> comparisonRows) =>
+        IReadOnlyList<PayrollComparisonInputRow> comparisonRows,
+        IReadOnlyDictionary<int, AnnualComparisonReportRowOverride>? overridesBySlotId = null) =>
         BuildReport(
             records,
             monthSequence,
-            AnnualComparisonSavedMonthSource.FromSavedRows(activeBatches, comparisonRows));
+            AnnualComparisonSavedMonthSource.FromSavedRows(activeBatches, comparisonRows),
+            overridesBySlotId);
 
     private static byte[] BuildReport(
         IReadOnlyList<EmploymentData> records,
         IReadOnlyList<(int Month, int GregorianYear)> monthSequence,
-        IAnnualComparisonMonthSource monthSource)
+        IAnnualComparisonMonthSource monthSource,
+        IReadOnlyDictionary<int, AnnualComparisonReportRowOverride>? overridesBySlotId = null)
     {
         using var wb = new XLWorkbook();
         var ws = wb.Worksheets.Add(SheetName);
@@ -82,7 +86,7 @@ internal static class AnnualComparisonReportBuilder
                          .OrderBy(s => s.GradeBand)
                          .ThenBy(s => s.SlotIndex))
             {
-                WriteRow(ws, outRow, ed, slot, monthSequence, monthSource);
+                WriteRow(ws, outRow, ed, slot, monthSequence, monthSource, overridesBySlotId);
                 outRow++;
             }
         }
@@ -106,32 +110,30 @@ internal static class AnnualComparisonReportBuilder
         EmploymentData ed,
         EmploymentDataSlot slot,
         IReadOnlyList<(int Month, int GregorianYear)> monthSequence,
-        IAnnualComparisonMonthSource monthSource)
+        IAnnualComparisonMonthSource monthSource,
+        IReadOnlyDictionary<int, AnnualComparisonReportRowOverride>? overridesBySlotId)
     {
-        var g1 = slot.GradeBand == 1;
-        ws.Cell(row, 1).Value = slot.InstitutionSymbol?.Trim() ?? "";
-        ws.Cell(row, 2).Value = ed.Employee?.FullName ?? "";
-        ws.Cell(row, 3).Value = (g1 ? ed.Grade1Role : ed.Grade2Role) ?? "";
-        ws.Cell(row, 4).Value = (g1 ? ed.Grade1Grade : ed.Grade2Grade) ?? "";
-        ws.Cell(row, 5).Value = (g1 ? ed.Grade1Seniority : ed.Grade2Seniority) ?? "";
-        if (slot.WeeklyHours.HasValue) ws.Cell(row, 6).Value = slot.WeeklyHours.Value;
-        if (slot.JobBase.HasValue) ws.Cell(row, 7).Value = slot.JobBase.Value;
-        if (g1 ? ed.Grade1JobPercent.HasValue : ed.Grade2JobPercent.HasValue)
-            ws.Cell(row, 8).Value = (g1 ? ed.Grade1JobPercent : ed.Grade2JobPercent)!.Value;
-        ws.Cell(row, 9).Value = 0m;
+        var computed = AnnualComparisonRowComputer.Compute(ed, slot, monthSequence, monthSource);
+        AnnualComparisonReportRowOverride? ovr = null;
+        overridesBySlotId?.TryGetValue(slot.Id, out ovr);
+        var display = AnnualComparisonRowComputer.ToDisplay(computed, ovr);
+
+        ws.Cell(row, 1).Value = display.InstitutionSymbol;
+        ws.Cell(row, 2).Value = display.FullName;
+        ws.Cell(row, 3).Value = display.Role;
+        ws.Cell(row, 4).Value = display.SugMisraFromPayroll;
+        ws.Cell(row, 5).Value = display.Grade;
+        ws.Cell(row, 6).Value = display.Seniority;
+        if (display.WeeklyHours.HasValue) ws.Cell(row, 7).Value = display.WeeklyHours.Value;
+        if (display.JobBase.HasValue) ws.Cell(row, 8).Value = display.JobBase.Value;
+        if (display.JobPercent.HasValue) ws.Cell(row, 9).Value = display.JobPercent.Value;
+        ws.Cell(row, 10).Value = display.DoubleGeneral;
 
         var col = StaticHeaders.Length + 1;
         foreach (var (month, gregYear) in monthSequence)
         {
-            string cellText;
-            if (!monthSource.IsMonthCaptured(month, gregYear))
-                cellText = NotCapturedInInput;
-            else
-            {
-                var input = monthSource.ResolveInput(ed, slot, month, gregYear);
-                cellText = BuildMonthCell(ed, slot, input);
-            }
-
+            var key = $"{month}.{gregYear}";
+            var cellText = display.MonthCells.GetValueOrDefault(key) ?? NotCapturedInInput;
             var cell = ws.Cell(row, col);
             cell.Value = cellText;
             ApplyMonthCellStyle(cell, cellText);
@@ -151,16 +153,18 @@ internal static class AnnualComparisonReportBuilder
         var values = input.Value;
         var g1 = slot.GradeBand == 1;
 
-        var dbRole = g1 ? ed.Grade1Role : ed.Grade2Role;
-        if (!PayrollComparisonUploadSupport.TextEqual(dbRole, values.Role))
-            mismatches.Add($"תפקיד: מערכת={FormatText(dbRole)}, קלט={FormatText(values.Role)}");
+        if (!PayrollComparisonUploadSupport.IsMonthlyJobType(values.Role))
+        {
+            mismatches.Add(
+                $"סוג משרה: קלט={FormatText(values.Role)}, נדרש={PayrollComparisonUploadSupport.ExpectedMonthlyJobType}");
+        }
 
         var dbGrade = g1 ? ed.Grade1Grade : ed.Grade2Grade;
         if (!PayrollComparisonUploadSupport.TextEqual(dbGrade, values.Grade))
             mismatches.Add($"דרגה: מערכת={FormatText(dbGrade)}, קלט={FormatText(values.Grade)}");
 
         var dbSeniority = g1 ? ed.Grade1Seniority : ed.Grade2Seniority;
-        if (!PayrollComparisonUploadSupport.TextEqual(dbSeniority, values.Seniority))
+        if (!PayrollComparisonUploadSupport.SeniorityEqual(dbSeniority, values.Seniority))
             mismatches.Add($"ותק: מערכת={FormatText(dbSeniority)}, קלט={FormatText(values.Seniority)}");
 
         if (values.CompareJobBase
@@ -215,4 +219,5 @@ internal static class AnnualComparisonReportBuilder
 
     private static string FormatText(string? v) =>
         string.IsNullOrWhiteSpace(v) ? "ריק" : v.Trim();
+
 }

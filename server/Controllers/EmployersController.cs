@@ -31,6 +31,7 @@ namespace AccountingProject.Controllers
 
         /// <summary>Upload monthly payroll Excel; returns comparison workbook (V per match; yellow empty cell per mismatch).</summary>
         [HttpPost("{id}/comparison/monthly-payroll")]
+        [AdminWrite]
         [RequestSizeLimit(ExcelUploadRules.ComparisonMonthlyPayrollMaxBytes)]
         public async Task<IActionResult> CompareMonthlyPayroll(int id, IFormFile file, CancellationToken cancellationToken)
         {
@@ -87,6 +88,7 @@ namespace AccountingProject.Controllers
         }
 
         [HttpPost]
+        [AdminWrite]
         public async Task<IActionResult> Create([FromBody] EmployerDto dto)
         {
             if (string.IsNullOrWhiteSpace(dto.Name))
@@ -104,6 +106,7 @@ namespace AccountingProject.Controllers
         }
 
         [HttpPut("{id}")]
+        [AdminWrite]
         public async Task<IActionResult> Update(int id, [FromBody] EmployerDto dto)
         {
             if (string.IsNullOrWhiteSpace(dto.Name))
@@ -122,6 +125,7 @@ namespace AccountingProject.Controllers
         }
 
         [HttpDelete("{id}")]
+        [AdminWrite]
         public async Task<IActionResult> Delete(int id)
         {
             var result = await _employerService.DeleteAsync(id);
@@ -155,12 +159,15 @@ namespace AccountingProject.Controllers
         public async Task<IActionResult> GetEmployees(int id,
             [FromQuery] string? search = null,
             [FromQuery] int page = 1,
-            [FromQuery] int pageSize = 50)
+            [FromQuery] int pageSize = 50,
+            [FromQuery] bool? isActive = null,
+            [FromQuery] string? institutionSymbol = null)
         {
             var employer = await _employerService.GetByIdAsync(id);
             if (employer == null) return NotFound();
 
-            var result = await _employerService.GetEmployeesAsync(id, search, page, pageSize);
+            var result = await _employerService.GetEmployeesAsync(
+                id, search, page, pageSize, isActive, institutionSymbol);
             var employeeIds = result.Items.Select(e => e.Id).ToList();
             var withEmploymentData = await _employerService.GetEmployeeIdsWithEmploymentDataAsync(id, employeeIds);
 
@@ -198,6 +205,7 @@ namespace AccountingProject.Controllers
         }
 
         [HttpPost("{id}/institution-symbols")]
+        [AdminWrite]
         public async Task<IActionResult> CreateInstitutionSymbol(int id, [FromBody] EmployerInstitutionSymbolDto dto)
         {
             var (symbol, message) = await _employerService.CreateInstitutionSymbolAsync(id, dto);
@@ -208,6 +216,7 @@ namespace AccountingProject.Controllers
         }
 
         [HttpPut("{id}/institution-symbols/{symbolId}")]
+        [AdminWrite]
         public async Task<IActionResult> UpdateInstitutionSymbol(int id, int symbolId, [FromBody] EmployerInstitutionSymbolUpdateDto dto)
         {
             var (symbol, message) = await _employerService.UpdateInstitutionSymbolAsync(id, symbolId, dto);
@@ -218,6 +227,7 @@ namespace AccountingProject.Controllers
         }
 
         [HttpDelete("{id}/institution-symbols/{symbolId}")]
+        [AdminWrite]
         public async Task<IActionResult> DeleteInstitutionSymbol(int id, int symbolId)
         {
             var result = await _employerService.DeleteInstitutionSymbolAsync(id, symbolId);
@@ -252,12 +262,25 @@ namespace AccountingProject.Controllers
             employee.FirstName,
             employee.LastName,
             employee.EmployeeNumber,
-            BirthDate = employee.BirthDate.HasValue ? employee.BirthDate.Value.ToString("yyyy-MM-dd") : null,
+            employee.Phone,
+            BirthDate = FmtDate(employee.BirthDate),
+            ChildBirthDate1 = FmtDate(employee.ChildBirthDate1),
+            ChildBirthDate2 = FmtDate(employee.ChildBirthDate2),
+            ChildBirthDate3 = FmtDate(employee.ChildBirthDate3),
+            ChildBirthDate4 = FmtDate(employee.ChildBirthDate4),
+            ChildBirthDate5 = FmtDate(employee.ChildBirthDate5),
+            ChildBirthDate6 = FmtDate(employee.ChildBirthDate6),
+            ChildBirthDate7 = FmtDate(employee.ChildBirthDate7),
+            ChildBirthDate8 = FmtDate(employee.ChildBirthDate8),
+            ChildBirthDate9 = FmtDate(employee.ChildBirthDate9),
+            ChildBirthDate10 = FmtDate(employee.ChildBirthDate10),
             employee.Gender,
             FullName = employee.FullName,
             hasEmploymentData,
             isActive = employee.ManualActiveStatus ?? hasEmploymentData,
             employee.ManualActiveStatus
         };
+
+        private static string? FmtDate(DateOnly? d) => d.HasValue ? d.Value.ToString("yyyy-MM-dd") : null;
     }
 }

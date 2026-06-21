@@ -36,7 +36,7 @@ public sealed class EmploymentSparseSlotsTests
             JobBase = 50m,
         };
 
-        var sut = new EmploymentDataService(db);
+        var sut = ServiceTestFactory.CreateEmploymentDataService(db);
         var dto = new EmploymentDataDto
         {
             EmployeeId = employee.Id,
@@ -44,7 +44,7 @@ public sealed class EmploymentSparseSlotsTests
             AcademicYear = "תשפ\"ו",
             Grade1GradeName = "עוז לתמורה",
             Grade1Grade = "ב",
-            Grade1Role = "מורה מחנך",
+            Grade1Role = "מורה מקצועי",
             Grade1Seniority = "1",
             Slots = slots,
         };
@@ -91,7 +91,7 @@ public sealed class EmploymentSparseSlotsTests
         db.SaveChanges();
         var existing = db.EmploymentData.Include(e => e.Slots).First();
 
-        var sut = new EmploymentDataService(db);
+        var sut = ServiceTestFactory.CreateEmploymentDataService(db);
         var dto = new EmploymentDataDto
         {
             EmployeeId = employee.Id,
@@ -148,7 +148,7 @@ public sealed class EmploymentSparseSlotsTests
         for (var i = 2; i < 12; i++)
             slots[i] = EmptySlotDto(i);
 
-        var sut = new EmploymentDataService(db);
+        var sut = ServiceTestFactory.CreateEmploymentDataService(db);
         var dto = new EmploymentDataDto
         {
             EmployeeId = employee.Id,

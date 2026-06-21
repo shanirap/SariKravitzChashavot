@@ -37,4 +37,42 @@ public sealed class HebrewAcademicYearTests
         Assert.Null(HebrewAcademicYear.Normalize(null));
         Assert.Equal("תשפ\"ו", HebrewAcademicYear.Normalize("  תשפ\"ו  "));
     }
+
+    [Fact]
+    public void TryParseSeptemberGregorianYear_TashpaV_Returns2025()
+    {
+        Assert.True(HebrewAcademicYear.TryParseSeptemberGregorianYear("תשפ\"ו", out var year));
+        Assert.Equal(2025, year);
+    }
+
+    [Fact]
+    public void TryParseSeptemberGregorianYear_Invalid_ReturnsFalse()
+    {
+        Assert.False(HebrewAcademicYear.TryParseSeptemberGregorianYear("xyz123", out _));
+        Assert.False(HebrewAcademicYear.TryParseSeptemberGregorianYear(null, out _));
+        Assert.False(HebrewAcademicYear.TryParseSeptemberGregorianYear("", out _));
+    }
+
+    [Fact]
+    public void TryValidateAndCanonicalize_ValidNumericYears_ReturnCanonicalHebrewYear()
+    {
+        Assert.True(HebrewAcademicYear.TryValidateAndCanonicalize("5786", out var fromHebrewNumber));
+        Assert.Equal("תשפ\"ו", fromHebrewNumber);
+
+        Assert.True(HebrewAcademicYear.TryValidateAndCanonicalize("2026", out var fromGregorian));
+        Assert.Equal("תשפ\"ו", fromGregorian);
+    }
+
+    [Fact]
+    public void TryValidateAndCanonicalize_InvalidInput_ReturnsFalse()
+    {
+        Assert.False(HebrewAcademicYear.TryValidateAndCanonicalize("xyz123", out _));
+        Assert.False(HebrewAcademicYear.TryValidateAndCanonicalize("5000", out _));
+    }
+
+    [Fact]
+    public void GetSchoolYearStartDate_InvalidYear_Throws()
+    {
+        Assert.Throws<ArgumentException>(() => HebrewAcademicYear.GetSchoolYearStartDate("xyz123"));
+    }
 }

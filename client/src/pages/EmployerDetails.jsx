@@ -22,26 +22,37 @@ export default function EmployerDetails() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const [activeFilter, setActiveFilter] = useState('all');
+  const [institutionSymbolFilter, setInstitutionSymbolFilter] = useState('');
+  const [institutionSymbols, setInstitutionSymbols] = useState([]);
   const [loading, setLoading] = useState(true);
   const [alert, setAlert] = useState(location.state?.success ? { type: 'success', msg: location.state.success } : null);
   const [form, setForm] = useState(emptyEmp);
   const [editTarget, setEditTarget] = useState(null);
 
-  const loadEmployees = useCallback(async (p = page, s = search) => {
+  const loadEmployees = useCallback(async (p = page, s = search, active = activeFilter, symbol = institutionSymbolFilter) => {
     try {
-      const res = await employersApi.getEmployees(id, { page: p, pageSize: PAGE_SIZE, search: s || undefined });
+      const params = { page: p, pageSize: PAGE_SIZE, search: s || undefined };
+      if (active === 'active') params.isActive = true;
+      else if (active === 'inactive') params.isActive = false;
+      if (String(symbol ?? '').trim()) params.institutionSymbol = String(symbol).trim();
+      const res = await employersApi.getEmployees(id, params);
       setEmployees(res.data.items);
       setTotalCount(res.data.totalCount);
     } catch {
       showAlert('danger', 'שגיאה בטעינת עובדים.');
     }
-  }, [id, page, search]);
+  }, [id, page, search, activeFilter, institutionSymbolFilter]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const empRes = await employersApi.getById(id);
+      const [empRes, symbolsRes] = await Promise.all([
+        employersApi.getById(id),
+        employersApi.getInstitutionSymbols(id),
+      ]);
       setEmployer(empRes.data);
+      setInstitutionSymbols(symbolsRes.data ?? []);
     } catch {
       showAlert('danger', 'שגיאה בטעינת הנתונים.');
     } finally {
@@ -49,8 +60,39 @@ export default function EmployerDetails() {
     }
   }, [id]);
 
-  useEffect(() => { load(); }, [id]);
-  useEffect(() => { loadEmployees(page, search); }, [page, search]);
+  useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    setPage(1);
+    setSearch('');
+    setSearchInput('');
+    setActiveFilter('all');
+    setInstitutionSymbolFilter('');
+  }, [id]);
+
+  useEffect(() => {
+    loadEmployees(page, search, activeFilter, institutionSymbolFilter);
+  }, [id, loadEmployees, page, search, activeFilter, institutionSymbolFilter]);
+
+  const handleActiveFilterChange = (e) => {
+    setPage(1);
+    setActiveFilter(e.target.value);
+  };
+
+  const handleInstitutionSymbolFilterChange = (e) => {
+    setPage(1);
+    setInstitutionSymbolFilter(e.target.value);
+  };
+
+  const clearFilters = () => {
+    setSearchInput('');
+    setSearch('');
+    setActiveFilter('all');
+    setInstitutionSymbolFilter('');
+    setPage(1);
+  };
+
+  const hasFilters = search || activeFilter !== 'all' || institutionSymbolFilter;
 
   useEffect(() => {
     if (alert) {
@@ -67,18 +109,12 @@ export default function EmployerDetails() {
     setSearch(searchInput);
   };
 
-  const clearSearch = () => {
-    setSearchInput('');
-    setSearch('');
-    setPage(1);
-  };
-
   const handleDeleteEmployee = async (emp) => {
     if (!window.confirm(`האם למחוק את "${emp.fullName || emp.idNumber}"?\nפעולה זו אפשרית רק אם אין לעובד נתוני העסקה.`)) return;
     try {
       await employeesApi.delete(emp.id);
       showAlert('success', `העובד "${emp.fullName || emp.idNumber}" נמחק.`);
-      loadEmployees(page, search);
+      loadEmployees(page, search, activeFilter, institutionSymbolFilter);
     } catch (err) {
       showAlert('danger', err.response?.data?.message || 'שגיאה במחיקה.');
     }
@@ -97,7 +133,7 @@ export default function EmployerDetails() {
     try {
       await employeesApi.updateActiveStatus(emp.id, nextIsActive);
       showAlert('success', `סטטוס העובד עודכן ל-${nextIsActive ? 'פעיל' : 'לא פעיל'}.`);
-      loadEmployees(page, search);
+      loadEmployees(page, search, activeFilter, institutionSymbolFilter);
     } catch (err) {
       showAlert('danger', err.response?.data?.message || 'שגיאה בעדכון סטטוס.');
     }
@@ -154,7 +190,7 @@ export default function EmployerDetails() {
       showAlert('success', 'פרטי העובד עודכנו בהצלחה.');
       setForm(emptyEmp); setEditTarget(null);
       document.getElementById('closeEditEmpModal').click();
-      loadEmployees(page, search);
+      loadEmployees(page, search, activeFilter, institutionSymbolFilter);
     } catch (err) {
       showAlert('danger', err.response?.data?.message || 'שגיאה בעדכון.');
     }
@@ -216,25 +252,51 @@ export default function EmployerDetails() {
           <span>רשימה ({totalCount})</span>
         </div>
         <div className="card-body">
-          {/* חיפוש */}
-          <form onSubmit={handleSearch} className="d-flex gap-2 mb-3">
+          {/* חיפוש וסינון */}
+          <form onSubmit={handleSearch} className="d-flex flex-wrap gap-2 mb-3 align-items-end">
             <div className="input-group" style={{ maxWidth: 360 }}>
               <span className="input-group-text"><i className="bi bi-search"></i></span>
               <input type="text" className="form-control" placeholder="חיפוש לפי שם, ת.ז., מספר עובד בעוקץ..."
                 value={searchInput} onChange={e => setSearchInput(e.target.value)} />
               {searchInput && (
-                <button type="button" className="btn btn-outline-secondary" onClick={clearSearch}>
+                <button type="button" className="btn btn-outline-secondary" onClick={() => { setSearchInput(''); setSearch(''); setPage(1); }}>
                   <i className="bi bi-x"></i>
                 </button>
               )}
             </div>
+            <div style={{ minWidth: 150 }}>
+              <label className="form-label small mb-1">סטטוס</label>
+              <select className="form-select form-select-sm" value={activeFilter} onChange={handleActiveFilterChange}>
+                <option value="all">הכל</option>
+                <option value="active">פעיל</option>
+                <option value="inactive">לא פעיל</option>
+              </select>
+            </div>
+            <div style={{ minWidth: 200 }}>
+              <label className="form-label small mb-1">סמל מוסד</label>
+              <select className="form-select form-select-sm" value={institutionSymbolFilter} onChange={handleInstitutionSymbolFilterChange}>
+                <option value="">כל המוסדות</option>
+                {institutionSymbols.map((sym) => (
+                  <option key={sym.id} value={sym.institutionSymbol}>
+                    {sym.institutionSymbolName
+                      ? `${sym.institutionSymbol} — ${sym.institutionSymbolName}`
+                      : sym.institutionSymbol}
+                  </option>
+                ))}
+              </select>
+            </div>
             <button type="submit" className="btn btn-primary px-3">חפש</button>
+            {hasFilters && (
+              <button type="button" className="btn btn-outline-secondary px-3" onClick={clearFilters}>
+                נקה סינון
+              </button>
+            )}
           </form>
 
           {employees.length === 0 ? (
             <div className="empty-state">
               <i className="bi bi-person-x"></i>
-              <p className="mb-0">{search ? `לא נמצאו תוצאות עבור "${search}"` : 'לא נמצאו עובדים. לחץ על "הוסף עובד" להוסיף.'}</p>
+              <p className="mb-0">{hasFilters ? 'לא נמצאו עובדים התואמים לסינון.' : 'לא נמצאו עובדים. לחץ על "הוסף עובד" להוסיף.'}</p>
             </div>
           ) : (
             <>
@@ -254,9 +316,20 @@ export default function EmployerDetails() {
                   <tbody>
                     {employees.map(emp => {
                       const cannotActivateWithoutEmploymentData = !emp.isActive && !emp.hasEmploymentData;
+                      const employmentPath = emp.hasEmploymentData
+                        ? `/employees/${emp.id}/${id}`
+                        : `/employees/${emp.id}/${id}?addEmployment=1`;
                       return (
                         <tr key={emp.id}>
-                        <td className="fw-semibold">{emp.fullName || '—'}</td>
+                        <td className="fw-semibold">
+                          <Link
+                            to={employmentPath}
+                            className="link-primary text-decoration-none"
+                            title={emp.hasEmploymentData ? 'נתוני העסקה' : 'הוספת נתוני העסקה'}
+                          >
+                            {emp.fullName || emp.idNumber || '—'}
+                          </Link>
+                        </td>
                         <td>{emp.idNumber}</td>
                         <td>{emp.employeeNumber || '—'}</td>
                         <td>{formatDateDDMMYYYY(emp.birthDate)}</td>
@@ -273,13 +346,7 @@ export default function EmployerDetails() {
                             className={`btn btn-sm btn-action ${
                               emp.hasEmploymentData ? 'btn-outline-primary' : 'btn-primary'
                             }`}
-                            onClick={() =>
-                              navigate(
-                                emp.hasEmploymentData
-                                  ? `/employees/${emp.id}/${id}`
-                                  : `/employees/${emp.id}/${id}?addEmployment=1`
-                              )
-                            }
+                            onClick={() => navigate(employmentPath)}
                             title={emp.hasEmploymentData ? 'נתוני העסקה' : 'הוספת נתוני העסקה'}
                           >
                             {emp.hasEmploymentData ? (
@@ -360,12 +427,12 @@ function EmployeeForm({ form, setForm }) {
     <>
       <div className="row g-3">
         <div className="col-6">
-          <label className="form-label fw-semibold">שם פרטי <span className="text-danger">*</span></label>
-          <input type="text" className="form-control" value={form.firstName} onChange={set('firstName')} required maxLength={100} />
-        </div>
-        <div className="col-6">
           <label className="form-label fw-semibold">שם משפחה <span className="text-danger">*</span></label>
           <input type="text" className="form-control" value={form.lastName} onChange={set('lastName')} required maxLength={100} />
+        </div>
+        <div className="col-6">
+          <label className="form-label fw-semibold">שם פרטי <span className="text-danger">*</span></label>
+          <input type="text" className="form-control" value={form.firstName} onChange={set('firstName')} required maxLength={100} />
         </div>
       </div>
       <div className="row g-3 mt-1">

@@ -35,18 +35,11 @@ namespace AccountingProject.Infrastructure
                 return;
             }
 
-            var role = configuration["Jwt:SeedAdminRole"] ?? UserRoles.Admin;
-            if (!UserRoles.All.Contains(role))
-            {
-                logger.LogWarning("Development seed: Jwt:SeedAdminRole '{Role}' is invalid; falling back to {Admin}.", role, UserRoles.Admin);
-                role = UserRoles.Admin;
-            }
-
             var dto = new CreateUserDto
             {
                 Username = SeedUsername,
                 Password = password.Trim(),
-                Role = role
+                Role = UserRoles.Admin,
             };
 
             UserAccountFactory.CreateUser(db, dto);
@@ -55,7 +48,7 @@ namespace AccountingProject.Infrastructure
             logger.LogInformation(
                 "Development seed: created user '{Username}' with role '{Role}'. Change the password after first login.",
                 SeedUsername,
-                role);
+                UserRoles.Admin);
         }
     }
 
@@ -66,16 +59,13 @@ namespace AccountingProject.Infrastructure
     {
         public static void CreateUser(PayrollDbContext db, CreateUserDto dto)
         {
-            if (!UserRoles.All.Contains(dto.Role))
-                throw new ArgumentException($"Invalid role: {dto.Role}");
-
             var hasher = new PasswordHasher<User>();
             var normalizedUsername = dto.Username.Trim();
 
             var user = new User
             {
                 Username = normalizedUsername,
-                Role = dto.Role.Trim(),
+                Role = UserRoles.Admin,
                 IsActive = true,
                 CreatedAt = DateTimeOffset.UtcNow
             };

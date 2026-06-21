@@ -31,7 +31,7 @@ public sealed class AnnualComparisonSavedApiIntegrationTests
         using var wb = new XLWorkbook(new MemoryStream(bytes));
         var ws = wb.Worksheet(SheetName);
         Assert.True(ws.LastRowUsed()?.RowNumber() >= 2);
-        Assert.Equal(AnnualComparisonReportBuilder.NotCapturedInInput, ws.Cell(2, 10).GetString());
+        Assert.Equal(AnnualComparisonReportBuilder.NotCapturedInInput, ws.Cell(2, 11).GetString());
     }
 
     [Fact]

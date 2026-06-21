@@ -10,7 +10,7 @@ namespace AccountingProject.Tests;
 public sealed class BulkImportEmployersTests
 {
     private static BulkImportService CreateService(PayrollDbContext db) =>
-        new(db, NullLogger<BulkImportService>.Instance);
+        ServiceTestFactory.CreateBulkImportService(db);
 
     [Fact]
     public async Task ImportEmployers_NewRow_ImportsSuccessfully()

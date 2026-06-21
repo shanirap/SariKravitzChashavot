@@ -78,7 +78,7 @@ internal static class ReportTestData
                     SlotIndex = 1,
                     InstitutionSymbol = institutionSymbol,
                     WeeklyHours = weeklyHours,
-                    JobBase = 28m,
+                    JobBase = 30m,
                 },
             ],
         };
