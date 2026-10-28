@@ -3,8 +3,17 @@ import { Link, useParams } from 'react-router-dom';
 import { employersApi, reportsApi, employmentDataApi } from '../api';
 import { parseApiErrorMessage } from '../utils/apiErrorMessage';
 import { formatDateDDMMYYYYForFilename } from '../utils/dateFormat';
-import { REPORT_ACADEMIC_YEAR_OPTIONS } from '../employmentDataHelpers';
+import { REPORT_ACADEMIC_YEAR_OPTIONS, generateAcademicYearOptions, formatHebrewYear } from '../employmentDataHelpers';
 import AnnualComparisonSavedPanel from '../components/reports/AnnualComparisonSavedPanel';
+
+/** Returns the Hebrew academic year that comes after the current one (e.g. current תשפ"ז → next תשפ"ח). */
+function nextAcademicYearFromNow() {
+  const now = new Date();
+  const gy = now.getFullYear();
+  // current Hebrew year (September-based)
+  const currentHebrew = now.getMonth() >= 8 ? gy + 3761 : gy + 3760;
+  return formatHebrewYear(currentHebrew + 1);
+}
 
 const ACADEMIC_YEAR_OPTIONS = REPORT_ACADEMIC_YEAR_OPTIONS;
 
@@ -101,8 +110,8 @@ export default function EmployerActions() {
   const [compareSymbol, setCompareSymbol] = useState('');
   const [compareFileBusy, setCompareFileBusy] = useState(false);
   const [institutionHoursBusy, setInstitutionHoursBusy] = useState(false);
-  // bulk next year
-  const [bulkTargetYear, setBulkTargetYear] = useState(ACADEMIC_YEAR_OPTIONS[0] ?? '');
+  // bulk next year — default to the academic year that immediately follows the current one
+  const [bulkTargetYear, setBulkTargetYear] = useState(() => nextAcademicYearFromNow());
   const [bulkSourceYear, setBulkSourceYear] = useState('');
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkResult, setBulkResult] = useState(null); // BulkNextYearResultDto | null
@@ -232,9 +241,14 @@ export default function EmployerActions() {
         bulkSourceYear || null,
       );
       setBulkResult(res.data);
-      if (res.data.created > 0) {
-        showAlert('success', `נוצרו ${res.data.created} רשומות חדשות לשנת ${bulkTargetYear}.`);
-      } else if (res.data.errors === 0) {
+      const { created, skipped, errors } = res.data;
+      if (errors > 0 && created === 0) {
+        showAlert('danger', `הפעולה הסתיימה עם ${errors} שגיאות ולא נוצרו רשומות חדשות.`);
+      } else if (created > 0 && errors > 0) {
+        showAlert('warning', `נוצרו ${created} רשומות — אך אירעו ${errors} שגיאות. בדוק את הפירוט.`);
+      } else if (created > 0) {
+        showAlert('success', `נוצרו ${created} רשומות חדשות לשנת ${bulkTargetYear}.`);
+      } else if (errors === 0) {
         showAlert('info', 'לא נוצרו רשומות חדשות — כל העובדים הרלוונטיים כבר מעודכנים.');
       }
     } catch (err) {

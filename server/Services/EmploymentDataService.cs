@@ -112,11 +112,15 @@ namespace AccountingProject.Services
                     }
                     else
                     {
-                        source = await _db.EmploymentData
+                        // Sort by parsed Gregorian year (not raw string) for correct chronological order
+                    var allRecords = await _db.EmploymentData
                             .Include(r => r.Slots)
                             .Where(r => r.EmployeeId == emp.Id && r.EmployerId == employerId && !r.IsDeleted)
-                            .OrderByDescending(r => r.AcademicYear)
-                            .FirstOrDefaultAsync();
+                            .ToListAsync();
+                    source = allRecords
+                            .OrderByDescending(r =>
+                                HebrewAcademicYear.TryParseSeptemberGregorianYear(r.AcademicYear, out var yr) ? yr : 0)
+                            .FirstOrDefault();
                     }
 
                     if (source == null)
@@ -160,14 +164,16 @@ namespace AccountingProject.Services
                         Grade1Total = source.Grade1Total,
                         Grade1JobPercent = source.Grade1JobPercent,
                         Grade1TrainingFundPercent = source.Grade1TrainingFundPercent,
-                        Grade1AgeHours = source.Grade1AgeHours,
+                        // Age hours must be recomputed for the TARGET year (employee may cross 50/55 threshold).
+                        // Set to null so PrepareForSave recalculates; also forces 0 for education-support grades.
+                        Grade1AgeHours = null,
                         Grade1MotherBenefitPercent = source.Grade1MotherBenefitPercent,
                         Grade1TrainingBenefits = source.Grade1TrainingBenefits,
                         Grade1DoubleDegree = source.Grade1DoubleDegree,
                         Grade2Total = source.Grade2Total,
                         Grade2JobPercent = source.Grade2JobPercent,
                         Grade2TrainingFundPercent = source.Grade2TrainingFundPercent,
-                        Grade2AgeHours = source.Grade2AgeHours,
+                        Grade2AgeHours = null, // recalculated by PrepareForSave
                         Grade2MotherBenefitPercent = source.Grade2MotherBenefitPercent,
                         Grade2TrainingBenefits = source.Grade2TrainingBenefits,
                         Grade2DoubleDegree = source.Grade2DoubleDegree,
@@ -210,7 +216,7 @@ namespace AccountingProject.Services
                             EmployeeId = emp.Id,
                             EmployeeName = empName,
                             Status = "created",
-                            Message = $"נוצר מתוך {source.AcademicYear}, ותק: {source.Grade1Seniority} → {record.Grade1Seniority}"
+                            Message = $"נוצר מתוך {source.AcademicYear}, ותק: {source.Grade1Seniority} → {record.Grade1Seniority}, שעות גיל חושבו מחדש: {record.Grade1AgeHours}"
                         });
                     }
                 }
@@ -285,10 +291,13 @@ namespace AccountingProject.Services
             if (!await _db.Employers.AnyAsync(e => e.Id == dto.EmployerId))
                 return "המעסיק לא נמצא במערכת.";
 
+            // Only check non-deleted records for duplicate detection.
+            // A soft-deleted record for the same year should not block re-creation.
             var dup = await _db.EmploymentData.AnyAsync(ed =>
                 ed.EmployeeId == dto.EmployeeId
                 && ed.EmployerId == dto.EmployerId
                 && ed.AcademicYear == dto.AcademicYear
+                && !ed.IsDeleted
                 && (!excludeId.HasValue || ed.Id != excludeId.Value));
             if (dup)
                 return "כבר קיימת רשומה לעובד זה, מעסיק זה ושנת הלימודים.";
