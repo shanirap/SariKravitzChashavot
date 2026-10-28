@@ -412,11 +412,16 @@ export function computeEmployeeAgeHoursString(form, refDate = new Date()) {
 }
 
 export function patchEmploymentAutoAgeHours(form) {
-  const h = computeEmployeeAgeHoursString(form);
+  // תאריך ייחוס: 1 בספטמבר של שנת הלימודים — תואם לחישוב הבקאנד
+  const refDate = academicYearStartRefDate(form?.academicYear);
+  const h = computeEmployeeAgeHoursString(form, refDate);
+  // תומכות חינוך (אחיד/תומכות חינוך) אינן זכאיות לשעות גיל — תמיד 0
+  const isSupport = (gradeName) =>
+    normalizeGradeName(gradeName) === UNIFIED_EDUCATION_SUPPORT_GRADE_NAME;
   return {
     ...form,
-    grade1AgeHours: h,
-    grade2AgeHours: h,
+    grade1AgeHours: isSupport(form.grade1GradeName) ? '0' : h,
+    grade2AgeHours: isSupport(form.grade2GradeName) ? '0' : h,
   };
 }
 

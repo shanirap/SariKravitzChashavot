@@ -17,6 +17,8 @@ import {
   currentHebrewAcademicYear,
   defaultBandFields,
   initSlots,
+  parseSeptemberGregorianYear,
+  formatHebrewYear,
 } from '../employmentDataHelpers';
 
 function createEmploymentFormSetters(setForm) {
@@ -92,6 +94,38 @@ const toFormRec = (rec, emp) =>
     ...childBirthDateFieldsFromEmployee(emp),
   });
 
+// ─── helpers for "add next year" ────────────────────────────────────────────
+
+/** Return the Hebrew academic year that follows the given one (e.g. תשפ"ו → תשפ"ז). */
+function nextHebrewAcademicYear(yearStr) {
+  const sepGregorian = parseSeptemberGregorianYear(yearStr);
+  if (sepGregorian == null) return currentHebrewAcademicYear();
+  // sepGregorian + 3761 = current Hebrew year; +3762 = next Hebrew year
+  return formatHebrewYear(sepGregorian + 3762);
+}
+
+/** Increment a seniority string-number by 1; keep non-numeric values unchanged. */
+function incrementSeniority(val) {
+  if (val == null || val === '') return '';
+  const n = parseFloat(String(val).trim());
+  if (isNaN(n)) return val;
+  return String(n + 1);
+}
+
+/**
+ * Build a pre-filled create-form for the next academic year based on the latest record.
+ * Copies all fields from `rec`, advances the year by 1, and increments both seniority values.
+ */
+const nextYearFormFromRecord = (latestRec, emp) => {
+  const base = toFormRec(latestRec, emp);
+  return patchEmploymentTotalsThenJobPercents({
+    ...base,
+    academicYear: nextHebrewAcademicYear(latestRec.academicYear),
+    grade1Seniority: incrementSeniority(base.grade1Seniority),
+    grade2Seniority: incrementSeniority(base.grade2Seniority),
+  });
+};
+
 
 export default function EmployeeDetails() {
   const { employeeId, employerId } = useParams();
@@ -111,6 +145,7 @@ export default function EmployeeDetails() {
   const [createForm, setCreateForm] = useState(null);
   const [showEmploymentAddInline, setShowEmploymentAddInline] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [expandedRecordId, setExpandedRecordId] = useState(null);
 
   const editFns = createEmploymentFormSetters(setEditForm);
   const createFns = createEmploymentFormSetters(setCreateForm);
@@ -209,6 +244,19 @@ export default function EmployeeDetails() {
   const openAdd = () => {
     if (!employee) return;
     setCreateForm(newEmploymentForm(employee));
+    setShowEmploymentAddInline(true);
+  };
+
+  /** Open the add form pre-filled from the most recent existing record (+1 year, +1 ותק). */
+  const openAddNextYear = () => {
+    if (!employee || records.length === 0) return;
+    // Find the record with the highest academic year
+    const latestRec = records.reduce((best, rec) => {
+      const bestYear = parseSeptemberGregorianYear(best.academicYear) ?? 0;
+      const recYear  = parseSeptemberGregorianYear(rec.academicYear)  ?? 0;
+      return recYear > bestYear ? rec : best;
+    }, records[0]);
+    setCreateForm(nextYearFormFromRecord(latestRec, employee));
     setShowEmploymentAddInline(true);
   };
 
@@ -397,94 +445,183 @@ export default function EmployeeDetails() {
           ) : (
             <span>רשומות ({records.length})</span>
           )}
+          {records.length > 0 && !(showEmploymentAddInline && createForm) && (
+            <button
+              type="button"
+              className="btn btn-sm btn-outline-primary ms-auto"
+              onClick={openAddNextYear}
+              title="הוסף שנת לימודים נוספת (מועתק מהשנה האחרונה)"
+            >
+              <i className="bi bi-plus-circle me-1"></i>הוסף שנה
+            </button>
+          )}
+          {records.length > 0 && showEmploymentAddInline && createForm && (
+            <button
+              type="button"
+              className="btn btn-sm btn-outline-secondary ms-auto"
+              onClick={cancelInlineAdd}
+              title="ביטול הוספת שנה"
+            >
+              <i className="bi bi-x-circle me-1"></i>ביטול
+            </button>
+          )}
         </div>
         <div className="card-body p-0">
-          {records.length === 0 && showEmploymentAddInline && createForm ? (
-            <form
-              id="employment-add-section"
-              ref={employmentAddSectionRef}
-              onSubmit={handleCreate}
-              className="p-3"
-            >
-              <div className="p-2 p-md-3">
-                <EmploymentDataFormSections
-                  form={createForm}
-                  set={createFns.set}
-                  setSlot={createFns.setSlot}
-                  setBandField={createFns.setBandField}
-                  institutionSymbols={institutionSymbols}
-                />
-              </div>
-              <div className="border-top bg-light px-3 py-3 d-flex gap-2 flex-wrap justify-content-end">
-                <button
-                  type="button"
-                  className="btn btn-outline-secondary"
-                  onClick={cancelInlineAdd}
-                  disabled={saving}
-                >
-                  ביטול
-                </button>
-                <button type="submit" className="btn btn-primary px-4" disabled={saving}>
-                  {saving ? (
-                    <>
-                      <span className="spinner-border spinner-border-sm me-2"></span>שומר...
-                    </>
-                  ) : (
-                    <>
-                      <i className="bi bi-check-lg me-1"></i>שמור
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          ) : records.length === 0 ? (
-            <div className="empty-state py-4 px-3">
-              <i className="bi bi-file-earmark-x"></i>
-              <p className="mb-3">לא נמצאו נתוני העסקה.</p>
-              <button type="button" className="btn btn-primary" onClick={openAdd}>
-                <i className="bi bi-plus-circle me-1"></i>הוסף נתוני העסקה
-              </button>
-            </div>
-          ) : (
-            <div className="employment-records-detail">
-              {records.map((rec, idx) => (
-                <div
-                  key={rec.id}
-                  className={`px-3 py-3${idx < records.length - 1 ? ' border-bottom' : ''}`}
-                >
-                  <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-                    <div className="d-flex align-items-center gap-2">
-                      <span className="text-muted small">שנת לימודים</span>
-                      <span className="badge-month">{rec.periodDisplay ?? rec.academicYear}</span>
-                    </div>
-                    <div>
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-outline-secondary btn-action"
-                        title="עריכה"
-                        onClick={() => openEdit(rec)}
-                      >
-                        <i className="bi bi-pencil"></i>
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-outline-danger btn-action ms-1"
-                        title="מחיקה"
-                        onClick={() => handleDelete(rec.id)}
-                      >
-                        <i className="bi bi-trash"></i>
-                      </button>
-                    </div>
-                  </div>
-                  <EmploymentDataRecordDisplay
-                    rec={rec}
-                    fmt={fmt}
-                    fmtNum={fmtNum}
-                    omitYearRow
+          {records.length === 0 ? (
+            /* ── No records yet ─────────────────────────────────────── */
+            showEmploymentAddInline && createForm ? (
+              <form
+                id="employment-add-section"
+                ref={employmentAddSectionRef}
+                onSubmit={handleCreate}
+                className="p-3"
+              >
+                <div className="p-2 p-md-3">
+                  <EmploymentDataFormSections
+                    form={createForm}
+                    set={createFns.set}
+                    setSlot={createFns.setSlot}
+                    setBandField={createFns.setBandField}
+                    institutionSymbols={institutionSymbols}
                   />
                 </div>
-              ))}
-            </div>
+                <div className="border-top bg-light px-3 py-3 d-flex gap-2 flex-wrap justify-content-end">
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary"
+                    onClick={cancelInlineAdd}
+                    disabled={saving}
+                  >
+                    ביטול
+                  </button>
+                  <button type="submit" className="btn btn-primary px-4" disabled={saving}>
+                    {saving ? (
+                      <><span className="spinner-border spinner-border-sm me-2"></span>שומר...</>
+                    ) : (
+                      <><i className="bi bi-check-lg me-1"></i>שמור</>
+                    )}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div className="empty-state py-4 px-3">
+                <i className="bi bi-file-earmark-x"></i>
+                <p className="mb-3">לא נמצאו נתוני העסקה.</p>
+                <button type="button" className="btn btn-primary" onClick={openAdd}>
+                  <i className="bi bi-plus-circle me-1"></i>הוסף נתוני העסקה
+                </button>
+              </div>
+            )
+          ) : (
+            /* ── Existing records + optional "add next year" form ───── */
+            <>
+              <div className="employment-records-detail">
+                {records.map((rec, idx) => {
+                  const isExpanded = expandedRecordId === rec.id;
+                  const toggleExpand = () =>
+                    setExpandedRecordId(isExpanded ? null : rec.id);
+                  return (
+                    <div
+                      key={rec.id}
+                      className={idx < records.length - 1 ? 'border-bottom' : ''}
+                    >
+                      {/* ── Accordion header (always visible) ── */}
+                      <div
+                        className="d-flex flex-wrap justify-content-between align-items-center gap-2 px-3 py-3"
+                        style={{ cursor: 'pointer', userSelect: 'none' }}
+                        onClick={toggleExpand}
+                        role="button"
+                        aria-expanded={isExpanded}
+                      >
+                        <div className="d-flex align-items-center gap-2">
+                          <i
+                            className={`bi ${isExpanded ? 'bi-chevron-up' : 'bi-chevron-down'} text-muted`}
+                            style={{ fontSize: '0.8rem' }}
+                          ></i>
+                          <span className="text-muted small">שנת לימודים</span>
+                          <span className="badge-month">{rec.periodDisplay ?? rec.academicYear}</span>
+                        </div>
+                        {/* Stop propagation on buttons so click on header doesn't interfere */}
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-secondary btn-action"
+                            title="עריכה"
+                            onClick={() => openEdit(rec)}
+                          >
+                            <i className="bi bi-pencil"></i>
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-danger btn-action ms-1"
+                            title="מחיקה"
+                            onClick={() => handleDelete(rec.id)}
+                          >
+                            <i className="bi bi-trash"></i>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* ── Accordion body (visible only when expanded) ── */}
+                      {isExpanded && (
+                        <div className="px-3 pb-3 border-top">
+                          <EmploymentDataRecordDisplay
+                            rec={rec}
+                            fmt={fmt}
+                            fmtNum={fmtNum}
+                            omitYearRow
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* ── Add next year form (appears below existing records) ── */}
+              {showEmploymentAddInline && createForm && (
+                <form
+                  id="employment-add-section"
+                  ref={employmentAddSectionRef}
+                  onSubmit={handleCreate}
+                  className="border-top"
+                >
+                  <div className="px-3 pt-3 pb-1 bg-body-tertiary border-bottom d-flex align-items-center gap-2">
+                    <i className="bi bi-plus-circle text-primary"></i>
+                    <span className="fw-semibold">
+                      הוספת שנת לימודים — {createForm.academicYear}
+                    </span>
+                    <span className="text-muted small ms-1">(הועתק מהשנה האחרונה, ותק עודכן)</span>
+                  </div>
+                  <div className="p-2 p-md-3">
+                    <EmploymentDataFormSections
+                      form={createForm}
+                      set={createFns.set}
+                      setSlot={createFns.setSlot}
+                      setBandField={createFns.setBandField}
+                      institutionSymbols={institutionSymbols}
+                    />
+                  </div>
+                  <div className="border-top bg-light px-3 py-3 d-flex gap-2 flex-wrap justify-content-end">
+                    <button
+                      type="button"
+                      className="btn btn-outline-secondary"
+                      onClick={cancelInlineAdd}
+                      disabled={saving}
+                    >
+                      ביטול
+                    </button>
+                    <button type="submit" className="btn btn-primary px-4" disabled={saving}>
+                      {saving ? (
+                        <><span className="spinner-border spinner-border-sm me-2"></span>שומר...</>
+                      ) : (
+                        <><i className="bi bi-check-lg me-1"></i>שמור</>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </>
           )}
         </div>
       </div>

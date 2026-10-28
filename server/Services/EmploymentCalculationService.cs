@@ -57,10 +57,14 @@ namespace AccountingProject.Services
             if (!computed.HasValue)
                 return;
 
+            // תומכות חינוך (אחיד/תומכות חינוך) אינן זכאיות לשעות גיל — תמיד 0
+            var grade1IsSupport = GradeOptions.NormalizeGradeName(dto.Grade1GradeName) == GradeOptions.UnifiedEducationSupportGradeName;
+            var grade2IsSupport = GradeOptions.NormalizeGradeName(dto.Grade2GradeName) == GradeOptions.UnifiedEducationSupportGradeName;
+
             if (!dto.Grade1AgeHours.HasValue)
-                dto.Grade1AgeHours = computed;
+                dto.Grade1AgeHours = grade1IsSupport ? 0m : computed;
             if (!dto.Grade2AgeHours.HasValue)
-                dto.Grade2AgeHours = computed;
+                dto.Grade2AgeHours = grade2IsSupport ? 0m : computed;
         }
 
         private static void ApplyDefaultJobBasesForBand(
