@@ -31,6 +31,7 @@ test.describe('Login vs live API', () => {
     await page.getByRole('button', { name: 'התחברות' }).click();
 
     await expect(page).not.toHaveURL(/\/login/, { timeout: 20_000 });
-    await expect(page.getByRole('link', { name: /מעסיקים/ })).toBeVisible();
+    // Verify we landed on the employers page (nav-link in the main navigation)
+    await expect(page.locator('nav .nav-link[href="/"]')).toBeVisible();
   });
 });

@@ -253,4 +253,9 @@ export const employmentDataApi = {
   create: (data) => api.post('/employment-data', data),
   update: (id, data) => api.put(`/employment-data/${id}`, data),
   delete: (id) => api.delete(`/employment-data/${id}`),
+  bulkAddNextYear: (employerId, targetAcademicYear, sourceAcademicYear) =>
+    api.post(`/employment-data/bulk-next-year/${employerId}`, {
+      targetAcademicYear,
+      sourceAcademicYear: sourceAcademicYear || null,
+    }),
 };

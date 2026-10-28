@@ -51,6 +51,25 @@ namespace AccountingProject.Controllers
             return NoContent();
         }
 
+        /// <summary>
+        /// POST api/employment-data/bulk-next-year/{employerId}
+        /// יוצר רשומת נתוני העסקה לשנת הלימודים הבאה לכל עובדי המעסיק שיש להם רשומה בשנת המקור.
+        /// </summary>
+        [HttpPost("bulk-next-year/{employerId:int}")]
+        [AdminWrite]
+        public async Task<IActionResult> BulkAddNextYear(int employerId, [FromBody] BulkNextYearRequestDto request)
+        {
+            try
+            {
+                var result = await _employmentDataService.BulkAddNextYearAsync(employerId, request);
+                return Ok(result);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
         private static object Map(EmploymentData r) => new
         {
             r.Id,

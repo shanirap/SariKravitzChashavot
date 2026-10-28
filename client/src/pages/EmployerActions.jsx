@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { employersApi, reportsApi } from '../api';
+import { employersApi, reportsApi, employmentDataApi } from '../api';
 import { parseApiErrorMessage } from '../utils/apiErrorMessage';
 import { formatDateDDMMYYYYForFilename } from '../utils/dateFormat';
 import { REPORT_ACADEMIC_YEAR_OPTIONS } from '../employmentDataHelpers';
@@ -87,7 +87,7 @@ export default function EmployerActions() {
   const { id } = useParams();
   const [employer, setEmployer] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [panel, setPanel] = useState('menu'); // menu | reports | compare
+  const [panel, setPanel] = useState('menu'); // menu | reports | compare | bulk-next-year
   const [alert, setAlert] = useState(null);
   const [reportType, setReportType] = useState('');
   const [reportGenerating, setReportGenerating] = useState(false);
@@ -101,6 +101,12 @@ export default function EmployerActions() {
   const [compareSymbol, setCompareSymbol] = useState('');
   const [compareFileBusy, setCompareFileBusy] = useState(false);
   const [institutionHoursBusy, setInstitutionHoursBusy] = useState(false);
+  // bulk next year
+  const [bulkTargetYear, setBulkTargetYear] = useState(ACADEMIC_YEAR_OPTIONS[0] ?? '');
+  const [bulkSourceYear, setBulkSourceYear] = useState('');
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkResult, setBulkResult] = useState(null); // BulkNextYearResultDto | null
+  const [bulkConfirmed, setBulkConfirmed] = useState(false);
 
   const showAlert = useCallback((type, msg) => {
     setAlert({ type, msg });
@@ -209,6 +215,34 @@ export default function EmployerActions() {
       showAlert('danger', msg);
     } finally {
       setInstitutionHoursBusy(false);
+    }
+  };
+
+  const handleBulkNextYear = async () => {
+    if (!bulkTargetYear) {
+      showAlert('warning', 'יש לבחור שנת לימודים יעד.');
+      return;
+    }
+    setBulkBusy(true);
+    setBulkResult(null);
+    try {
+      const res = await employmentDataApi.bulkAddNextYear(
+        id,
+        bulkTargetYear,
+        bulkSourceYear || null,
+      );
+      setBulkResult(res.data);
+      if (res.data.created > 0) {
+        showAlert('success', `נוצרו ${res.data.created} רשומות חדשות לשנת ${bulkTargetYear}.`);
+      } else if (res.data.errors === 0) {
+        showAlert('info', 'לא נוצרו רשומות חדשות — כל העובדים הרלוונטיים כבר מעודכנים.');
+      }
+    } catch (err) {
+      const msg = await parseApiErrorMessage(err, 'שגיאה בביצוע הפעולה.');
+      showAlert('danger', msg);
+    } finally {
+      setBulkBusy(false);
+      setBulkConfirmed(false);
     }
   };
 
@@ -342,7 +376,10 @@ export default function EmployerActions() {
               <Link to={`/employers/${id}`}>{employer.name}</Link>
             </li>
             <li className="breadcrumb-item active">
-              {panel === 'menu' ? 'פעולות ודוחות' : panel === 'reports' ? 'הנפקת דוחות' : 'השוואה'}
+              {panel === 'menu' ? 'פעולות ודוחות'
+                : panel === 'reports' ? 'הנפקת דוחות'
+                : panel === 'compare' ? 'השוואה'
+                : 'הוספת שנת לימודים'}
             </li>
           </ol>
         </nav>
@@ -404,15 +441,21 @@ export default function EmployerActions() {
             </button>
           </div>
           <div className="col-md-6 col-lg-4">
-            <div className="card h-100 border shadow-sm opacity-75">
+            <button
+              type="button"
+              className="card h-100 border shadow-sm text-start w-100 btn btn-light p-0 overflow-hidden"
+              onClick={() => { setBulkResult(null); setBulkConfirmed(false); setPanel('bulk-next-year'); }}
+            >
               <div className="card-header bg-body-tertiary py-3 d-flex align-items-center gap-2">
-                <i className="bi bi-three-dots text-secondary fs-4"></i>
-                <span className="fw-semibold text-secondary">פעולות נוספות</span>
+                <i className="bi bi-calendar-plus text-success fs-4"></i>
+                <span className="fw-semibold">הוספת שנת לימודים לכולם</span>
               </div>
               <div className="card-body">
-                <p className="text-muted small mb-0">כאן יופיעו כלים נוספים לפי צורך (יתעדכן בהמשך).</p>
+                <p className="text-muted small mb-0">
+                  יצירת נתוני העסקה לשנה הבאה לכלל העובדים — העתקה מהשנה הקיימת עם ותק +1.
+                </p>
               </div>
-            </div>
+            </button>
           </div>
         </div>
       )}
@@ -502,6 +545,152 @@ export default function EmployerActions() {
                 </form>
               );
             })()}
+          </div>
+        </div>
+      )}
+
+      {panel === 'bulk-next-year' && (
+        <div className="card border-success-subtle shadow-sm">
+          <div className="card-header d-flex align-items-center gap-2 bg-body-tertiary">
+            <i className="bi bi-calendar-plus text-success"></i>
+            <span className="fw-semibold">הוספת שנת לימודים לכלל העובדים — {employer.name}</span>
+          </div>
+          <div className="card-body">
+            <p className="text-muted small mb-3">
+              הפעולה יוצרת רשומת נתוני העסקה לשנת לימודים חדשה עבור <strong>כל עובד פעיל</strong> שיש לו
+              נתוני העסקה בשנת המקור. הנתונים מועתקים מהרשומה הקיימת והוותק מוגדל ב-1.
+              עובדים שכבר יש להם רשומה לשנת היעד — יידולגו.
+            </p>
+
+            <div className="row g-3 mb-4">
+              <div className="col-sm-6 col-md-4">
+                <label className="form-label fw-semibold">
+                  שנת לימודים יעד <span className="text-danger">*</span>
+                </label>
+                <select
+                  className="form-select"
+                  value={bulkTargetYear}
+                  onChange={e => setBulkTargetYear(e.target.value)}
+                  disabled={bulkBusy}
+                >
+                  {ACADEMIC_YEAR_OPTIONS.map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+                <div className="form-text">השנה החדשה שתיצור.</div>
+              </div>
+              <div className="col-sm-6 col-md-4">
+                <label className="form-label fw-semibold">שנת לימודים מקור (אופציונלי)</label>
+                <select
+                  className="form-select"
+                  value={bulkSourceYear}
+                  onChange={e => setBulkSourceYear(e.target.value)}
+                  disabled={bulkBusy}
+                >
+                  <option value="">— השנה האחרונה לכל עובד —</option>
+                  {ACADEMIC_YEAR_OPTIONS.map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+                <div className="form-text">ברירת מחדל: השנה האחרונה הקיימת לכל עובד.</div>
+              </div>
+            </div>
+
+            {!bulkResult && (
+              <div className="d-flex align-items-center gap-3 flex-wrap">
+                {!bulkConfirmed ? (
+                  <button
+                    type="button"
+                    className="btn btn-success px-4"
+                    onClick={() => setBulkConfirmed(true)}
+                    disabled={bulkBusy || !bulkTargetYear}
+                  >
+                    <i className="bi bi-calendar-plus me-2"></i>
+                    הוסף שנת לימודים לכולם
+                  </button>
+                ) : (
+                  <div className="alert alert-warning d-flex align-items-center gap-3 mb-0 py-2 px-3">
+                    <span>
+                      <i className="bi bi-exclamation-triangle-fill me-2"></i>
+                      האם לבצע? פעולה זו תיצור רשומות חדשות לשנת <strong>{bulkTargetYear}</strong> לכל עובד רלוונטי.
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-danger btn-sm"
+                      onClick={handleBulkNextYear}
+                      disabled={bulkBusy}
+                    >
+                      {bulkBusy
+                        ? <><span className="spinner-border spinner-border-sm me-1"></span>מבצע…</>
+                        : <><i className="bi bi-check-lg me-1"></i>כן, בצע</>}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-outline-secondary btn-sm"
+                      onClick={() => setBulkConfirmed(false)}
+                      disabled={bulkBusy}
+                    >
+                      ביטול
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {bulkResult && (
+              <div className="mt-3">
+                {/* Summary badges */}
+                <div className="d-flex flex-wrap gap-2 mb-3">
+                  <span className="badge bg-success fs-6 px-3 py-2">
+                    <i className="bi bi-check-circle me-1"></i>נוצרו: {bulkResult.created}
+                  </span>
+                  <span className="badge bg-secondary fs-6 px-3 py-2">
+                    <i className="bi bi-skip-forward me-1"></i>דולגו: {bulkResult.skipped}
+                  </span>
+                  {bulkResult.errors > 0 && (
+                    <span className="badge bg-danger fs-6 px-3 py-2">
+                      <i className="bi bi-x-circle me-1"></i>שגיאות: {bulkResult.errors}
+                    </span>
+                  )}
+                </div>
+
+                {/* Details table */}
+                {bulkResult.details && bulkResult.details.length > 0 && (
+                  <div className="table-responsive" style={{ maxHeight: 400, overflowY: 'auto' }}>
+                    <table className="table table-sm table-bordered table-hover mb-0">
+                      <thead className="table-light sticky-top">
+                        <tr>
+                          <th>שם עובד</th>
+                          <th>סטטוס</th>
+                          <th>הערה</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {bulkResult.details.map((d, i) => (
+                          <tr key={i} className={
+                            d.status === 'created' ? 'table-success'
+                            : d.status === 'error' ? 'table-danger'
+                            : ''
+                          }>
+                            <td>{d.employeeName}</td>
+                            <td>
+                              {d.status === 'created' && <span className="badge bg-success">נוצר</span>}
+                              {d.status === 'skipped' && <span className="badge bg-secondary">דולג</span>}
+                              {d.status === 'error' && <span className="badge bg-danger">שגיאה</span>}
+                            </td>
+                            <td className="text-muted small">{d.message}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary btn-sm mt-3"
+                  onClick={() => { setBulkResult(null); setBulkConfirmed(false); }}
+                >
+                  <i className="bi bi-arrow-counterclockwise me-1"></i>הפעל שוב
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

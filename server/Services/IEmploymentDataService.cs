@@ -9,5 +9,6 @@ namespace AccountingProject.Services
         Task<(EmploymentData? Record, string? Message)> CreateAsync(EmploymentDataDto dto);
         Task<(EmploymentData? Record, string? Message)> UpdateAsync(int id, EmploymentDataDto dto);
         Task<(bool Success, string? Message)> DeleteAsync(int id);
+        Task<BulkNextYearResultDto> BulkAddNextYearAsync(int employerId, BulkNextYearRequestDto request);
     }
 }

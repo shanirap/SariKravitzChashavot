@@ -70,6 +70,177 @@ namespace AccountingProject.Services
             return (true, null);
         }
 
+        public async Task<BulkNextYearResultDto> BulkAddNextYearAsync(int employerId, BulkNextYearRequestDto request)
+        {
+            var result = new BulkNextYearResultDto();
+
+            // Validate and canonicalize target year
+            if (!HebrewAcademicYear.TryValidateAndCanonicalize(request.TargetAcademicYear, out var targetYear))
+                throw new ArgumentException("שנת הלימודים היעד אינה תקינה.");
+
+            // Validate optional source year
+            string? sourceYear = null;
+            if (!string.IsNullOrWhiteSpace(request.SourceAcademicYear))
+            {
+                if (!HebrewAcademicYear.TryValidateAndCanonicalize(request.SourceAcademicYear, out var sy))
+                    throw new ArgumentException("שנת הלימודים המקור אינה תקינה.");
+                sourceYear = sy;
+            }
+
+            // Get all active (non-deleted) employees for this employer
+            var employees = await _db.Employees
+                .AsNoTracking()
+                .Where(e => e.EmployerId == employerId && !e.IsDeleted)
+                .Select(e => new { e.Id, e.FirstName, e.LastName })
+                .ToListAsync();
+
+            foreach (var emp in employees)
+            {
+                var empName = $"{emp.LastName} {emp.FirstName}".Trim();
+
+                try
+                {
+                    // Find source record: either the specified year or the most recent one
+                    EmploymentData? source;
+                    if (sourceYear != null)
+                    {
+                        source = await _db.EmploymentData
+                            .Include(r => r.Slots)
+                            .Where(r => r.EmployeeId == emp.Id && r.EmployerId == employerId
+                                        && r.AcademicYear == sourceYear && !r.IsDeleted)
+                            .FirstOrDefaultAsync();
+                    }
+                    else
+                    {
+                        source = await _db.EmploymentData
+                            .Include(r => r.Slots)
+                            .Where(r => r.EmployeeId == emp.Id && r.EmployerId == employerId && !r.IsDeleted)
+                            .OrderByDescending(r => r.AcademicYear)
+                            .FirstOrDefaultAsync();
+                    }
+
+                    if (source == null)
+                    {
+                        // No source record — skip silently
+                        result.Skipped++;
+                        result.Details.Add(new BulkNextYearEmployeeResult
+                        {
+                            EmployeeId = emp.Id,
+                            EmployeeName = empName,
+                            Status = "skipped",
+                            Message = "אין נתוני העסקה בשנה המקורית"
+                        });
+                        continue;
+                    }
+
+                    // Check if target year already exists for this employee
+                    var alreadyExists = await _db.EmploymentData.AnyAsync(r =>
+                        r.EmployeeId == emp.Id && r.EmployerId == employerId
+                        && r.AcademicYear == targetYear && !r.IsDeleted);
+
+                    if (alreadyExists)
+                    {
+                        result.Skipped++;
+                        result.Details.Add(new BulkNextYearEmployeeResult
+                        {
+                            EmployeeId = emp.Id,
+                            EmployeeName = empName,
+                            Status = "skipped",
+                            Message = $"קיימת כבר רשומה לשנת {targetYear}"
+                        });
+                        continue;
+                    }
+
+                    // Build DTO from source record with incremented seniority
+                    var dto = new EmploymentDataDto
+                    {
+                        EmployeeId = emp.Id,
+                        EmployerId = employerId,
+                        AcademicYear = targetYear,
+                        Grade1Total = source.Grade1Total,
+                        Grade1JobPercent = source.Grade1JobPercent,
+                        Grade1TrainingFundPercent = source.Grade1TrainingFundPercent,
+                        Grade1AgeHours = source.Grade1AgeHours,
+                        Grade1MotherBenefitPercent = source.Grade1MotherBenefitPercent,
+                        Grade1TrainingBenefits = source.Grade1TrainingBenefits,
+                        Grade1DoubleDegree = source.Grade1DoubleDegree,
+                        Grade2Total = source.Grade2Total,
+                        Grade2JobPercent = source.Grade2JobPercent,
+                        Grade2TrainingFundPercent = source.Grade2TrainingFundPercent,
+                        Grade2AgeHours = source.Grade2AgeHours,
+                        Grade2MotherBenefitPercent = source.Grade2MotherBenefitPercent,
+                        Grade2TrainingBenefits = source.Grade2TrainingBenefits,
+                        Grade2DoubleDegree = source.Grade2DoubleDegree,
+                        Grade1GradeName = source.Grade1GradeName,
+                        Grade1Grade = source.Grade1Grade,
+                        Grade1Role = source.Grade1Role,
+                        Grade1Seniority = IncrementSeniority(source.Grade1Seniority),
+                        Grade2GradeName = source.Grade2GradeName,
+                        Grade2Grade = source.Grade2Grade,
+                        Grade2Role = source.Grade2Role,
+                        Grade2Seniority = IncrementSeniority(source.Grade2Seniority),
+                        Slots = source.Slots.Select(s => new EmploymentDataSlotDto
+                        {
+                            GradeBand = s.GradeBand,
+                            SlotIndex = s.SlotIndex,
+                            InstitutionSymbol = s.InstitutionSymbol,
+                            WeeklyHours = s.WeeklyHours,
+                            JobBase = s.JobBase,
+                            SupplementaryParentSlotIndex = s.SupplementaryParentSlotIndex
+                        }).ToList()
+                    };
+
+                    var (record, errorMsg) = await CreateAsync(dto);
+                    if (record == null)
+                    {
+                        result.Errors++;
+                        result.Details.Add(new BulkNextYearEmployeeResult
+                        {
+                            EmployeeId = emp.Id,
+                            EmployeeName = empName,
+                            Status = "error",
+                            Message = errorMsg ?? "שגיאה לא ידועה"
+                        });
+                    }
+                    else
+                    {
+                        result.Created++;
+                        result.Details.Add(new BulkNextYearEmployeeResult
+                        {
+                            EmployeeId = emp.Id,
+                            EmployeeName = empName,
+                            Status = "created",
+                            Message = $"נוצר מתוך {source.AcademicYear}, ותק: {source.Grade1Seniority} → {record.Grade1Seniority}"
+                        });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    result.Errors++;
+                    result.Details.Add(new BulkNextYearEmployeeResult
+                    {
+                        EmployeeId = emp.Id,
+                        EmployeeName = empName,
+                        Status = "error",
+                        Message = ex.Message
+                    });
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>מגדיל ותק מספרי ב-1; ערכים לא מספריים נשמרים ללא שינוי.</summary>
+        private static string? IncrementSeniority(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return value;
+            var trimmed = value.Trim();
+            if (decimal.TryParse(trimmed, System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out var n))
+                return (n + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            return trimmed; // non-numeric — keep as-is
+        }
+
         private async Task<string?> ValidateAsync(EmploymentDataDto dto, int? excludeId)
         {
             if (dto.Slots == null)
