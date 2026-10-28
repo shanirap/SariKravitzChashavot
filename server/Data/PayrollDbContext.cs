@@ -9,13 +9,18 @@ namespace AccountingProject.Data
     {
         private static readonly HashSet<string> SensitiveAuditProperties = new(StringComparer.OrdinalIgnoreCase)
         {
-            "Password",
-            "PasswordHash",
-            "Token",
-            "Jwt",
-            "JwtToken",
-            "BootstrapAdminPassword"
+            // Auth secrets
+            "Password", "PasswordHash", "Token", "Jwt", "JwtToken", "BootstrapAdminPassword",
+            // PII — Israeli ID, birth dates, contact
+            "IdNumber", "BirthDate", "Phone",
+            // Children birth dates (ChildBirthDate1 .. ChildBirthDate10)
+            "ChildBirthDate1", "ChildBirthDate2", "ChildBirthDate3", "ChildBirthDate4",
+            "ChildBirthDate5", "ChildBirthDate6", "ChildBirthDate7", "ChildBirthDate8",
+            "ChildBirthDate9", "ChildBirthDate10",
         };
+
+        private static bool IsChildBirthDateProperty(string name) =>
+            name.StartsWith("ChildBirthDate", StringComparison.OrdinalIgnoreCase);
 
         private readonly ICurrentUserService? _currentUserService;
 
@@ -309,8 +314,10 @@ namespace AccountingProject.Data
 
         private static bool IsSensitiveProperty(string propertyName) =>
             SensitiveAuditProperties.Contains(propertyName)
+            || IsChildBirthDateProperty(propertyName)
             || propertyName.Contains("Password", StringComparison.OrdinalIgnoreCase)
-            || propertyName.Contains("Token", StringComparison.OrdinalIgnoreCase);
+            || propertyName.Contains("Token", StringComparison.OrdinalIgnoreCase)
+            || propertyName.Contains("BirthDate", StringComparison.OrdinalIgnoreCase);
 
         private static string NormalizeChangedBy(string? changedBy)
         {

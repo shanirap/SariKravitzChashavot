@@ -24,3 +24,7 @@ yarn-error.log*
 client/playwright-report/
 client/test-results/
 client/blob-report/
+
+## Secrets — development settings should never be committed to shared repos
+## Keep appsettings.Development.json local only (use appsettings.Development.example.json as template)
+server/appsettings.Development.json

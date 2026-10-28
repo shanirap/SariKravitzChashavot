@@ -4,6 +4,7 @@ using AccountingProject.Models;
 using AccountingProject.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace AccountingProject.Controllers
 {
@@ -148,6 +149,12 @@ namespace AccountingProject.Controllers
             safeBase = safeBase.Trim();
             if (safeBase.Length > 80) safeBase = safeBase[..80];
             var fileName = $"{safeBase}_{id}_{DateTime.UtcNow:yyyyMMdd}.xlsx";
+
+            var user = User.FindFirstValue(ClaimTypes.Name) ?? "unknown";
+            var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            _logger.LogInformation(
+                "[EXPORT_AUDIT] User={User} IP={IP} Report=employer-full-excel EmployerId={EmployerId} At={At}",
+                user, ip, id, DateTimeOffset.UtcNow);
 
             return File(
                 bytes,

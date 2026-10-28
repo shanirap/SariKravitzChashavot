@@ -4,6 +4,7 @@ using AccountingProject.Infrastructure;
 using AccountingProject.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace AccountingProject.Controllers
 {
@@ -28,6 +29,18 @@ namespace AccountingProject.Controllers
             _logger = logger;
         }
 
+        /// <summary>רישום אירוע ייצוא נתונים לצורכי audit (מי הוריד, מה, מתי, מאיזה IP).</summary>
+        private void LogExport(string reportType, object? parameters = null)
+        {
+            var user = User.FindFirstValue(ClaimTypes.Name) ?? User.FindFirstValue("sub") ?? "unknown";
+            var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            _logger.LogInformation(
+                "[EXPORT_AUDIT] User={User} IP={IP} Report={Report} Params={Params} At={At}",
+                user, ip, reportType,
+                parameters is null ? "" : System.Text.Json.JsonSerializer.Serialize(parameters),
+                DateTimeOffset.UtcNow);
+        }
+
         // GET /api/reports/kindergarten-annual?employerId=&academicYear=
         [HttpGet("kindergarten-annual")]
         public async Task<IActionResult> KindergartenAnnual(
@@ -41,6 +54,7 @@ namespace AccountingProject.Controllers
             try
             {
                 var bytes = await _reports.KindergartenAnnualAsync(employerId, canonicalYear);
+                LogExport("kindergarten-annual", new { employerId, academicYear = canonicalYear });
                 return File(bytes, XlsxMime, $"מצבת_גנים_{employerId}_{DateTime.UtcNow:yyyyMMdd}.xlsx");
             }
             catch (Exception ex)
@@ -63,6 +77,7 @@ namespace AccountingProject.Controllers
             try
             {
                 var bytes = await _reports.SchoolAnnualAsync(employerId, canonicalYear);
+                LogExport("school-annual", new { employerId, academicYear = canonicalYear });
                 return File(bytes, XlsxMime, $"מצבת_בית_ספר_{employerId}_{DateTime.UtcNow:yyyyMMdd}.xlsx");
             }
             catch (Exception ex)
@@ -93,6 +108,7 @@ namespace AccountingProject.Controllers
             {
                 await using var stream = file.OpenReadStream();
                 var bytes = await _reports.MonthlyComparisonAsync(employerId, canonicalYear, month, stream);
+                LogExport("monthly-comparison", new { employerId, academicYear = canonicalYear, month });
                 return File(bytes, XlsxMime, $"השוואה_חודשית_{month}_{employerId}_{DateTime.UtcNow:yyyyMMdd}.xlsx");
             }
             catch (InvalidOperationException ex)
@@ -127,6 +143,7 @@ namespace AccountingProject.Controllers
             {
                 await using var stream = file.OpenReadStream();
                 var bytes = await _reports.AnnualComparisonAsync(employerId, canonicalYear, stream);
+                LogExport("annual-comparison", new { employerId, academicYear = canonicalYear });
                 return File(bytes, XlsxMime, $"השוואה_שנתית_{employerId}_{DateTime.UtcNow:yyyyMMdd}.xlsx");
             }
             catch (InvalidOperationException ex)
@@ -243,6 +260,7 @@ namespace AccountingProject.Controllers
             try
             {
                 var bytes = await _reports.AnnualComparisonFromSavedDataAsync(employerId, canonicalYear);
+                LogExport("annual-comparison-saved", new { employerId, academicYear = canonicalYear });
                 return File(bytes, XlsxMime, $"השוואה_שנתית_שמור_{employerId}_{DateTime.UtcNow:yyyyMMdd}.xlsx");
             }
             catch (InvalidOperationException ex)
@@ -272,6 +290,7 @@ namespace AccountingProject.Controllers
             {
                 var symbol = institutionSymbol.Trim();
                 var bytes = await _reports.InstitutionHoursAsync(employerId, canonicalYear, symbol);
+                LogExport("institution-hours", new { employerId, academicYear = canonicalYear, institutionSymbol = symbol });
                 var fileLabel = ReportExportService.IsInstitutionHoursAllSymbols(symbol)
                     ? "כל_הסמלים"
                     : string.Concat(symbol.Take(20).Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
@@ -293,6 +312,7 @@ namespace AccountingProject.Controllers
             try
             {
                 var bytes = await _reports.EmployeesPersonalAsync(employerId);
+                LogExport("employees-personal", new { employerId });
                 return File(bytes, XlsxMime, $"עובדים_אישיים_{employerId}_{DateTime.UtcNow:yyyyMMdd}.xlsx");
             }
             catch (Exception ex)
@@ -315,6 +335,7 @@ namespace AccountingProject.Controllers
             try
             {
                 var bytes = await _reports.EmployeesEmploymentDataAsync(employerId, canonicalYear);
+                LogExport("employees-employment-data", new { employerId, academicYear = canonicalYear });
                 return File(bytes, XlsxMime, $"עובדים_נתוני_העסקה_{employerId}_{DateTime.UtcNow:yyyyMMdd}.xlsx");
             }
             catch (Exception ex)

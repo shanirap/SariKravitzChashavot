@@ -3,8 +3,10 @@ using AccountingProject.Infrastructure;
 using AccountingProject.Models;
 using AccountingProject.Services;
 using System.Security.Claims;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -16,6 +18,21 @@ HostEnvironmentConfigurationValidator.Validate(builder.Environment, builder.Conf
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+
+// ── Rate limiting: protect /api/auth/login from brute-force ──────────────
+// In development the limit is relaxed so E2E tests (many parallel logins) are not blocked.
+var isDev = builder.Environment.IsDevelopment();
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddFixedWindowLimiter("login", cfg =>
+    {
+        cfg.PermitLimit = isDev ? 200 : 10;
+        cfg.Window = isDev ? TimeSpan.FromMinutes(1) : TimeSpan.FromMinutes(5);
+        cfg.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        cfg.QueueLimit = 0;
+    });
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+});
 
 var jwtKeyRaw = builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("Configuration Jwt:Key is required.");
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? throw new InvalidOperationException("Configuration Jwt:Issuer is required.");
@@ -101,10 +118,33 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+// ── Security headers (all responses) ────────────────────────────────────
+app.Use(async (context, next) =>
+{
+    var headers = context.Response.Headers;
+    headers["X-Content-Type-Options"] = "nosniff";
+    headers["X-Frame-Options"] = "DENY";
+    headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+    headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
+    // Content-Security-Policy: React SPA uses inline styles/scripts; tighten further when CSP nonces are added
+    headers["Content-Security-Policy"] =
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " +
+        "img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self';";
+    await next();
+});
+
+// ── HTTPS redirect + HSTS in production ─────────────────────────────────
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+    app.UseHsts();
+}
+
 // Serve the React production build from wwwroot (single-origin hosting under IIS/Kestrel).
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
+app.UseRateLimiter();
 app.UseCors("ReactClient");
 app.UseAuthentication();
 app.UseAuthorization();

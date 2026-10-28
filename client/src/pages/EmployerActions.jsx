@@ -465,9 +465,7 @@ export default function EmployerActions() {
                 <span className="fw-semibold">הוספת שנת לימודים לכולם</span>
               </div>
               <div className="card-body">
-                <p className="text-muted small mb-0">
-                  יצירת נתוני העסקה לשנה הבאה לכלל העובדים — העתקה מהשנה הקיימת עם ותק +1.
-                </p>
+                <p className="text-muted small mb-0">יצירת נתוני העסקה לשנה הבאה לכלל העובדים.</p>
               </div>
             </button>
           </div>
