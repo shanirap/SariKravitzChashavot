@@ -28,3 +28,10 @@ client/blob-report/
 ## Secrets — development settings should never be committed to shared repos
 ## Keep appsettings.Development.json local only (use appsettings.Development.example.json as template)
 server/appsettings.Development.json
+
+## Deploy artifacts — compiled binaries and ZIPs are not source code
+artifacts/final-deploy-clean/
+artifacts/*.zip
+
+## Frontend build output copied into backend (generated, not source)
+server/wwwroot/

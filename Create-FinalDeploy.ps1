@@ -143,6 +143,13 @@ if (Test-Path (Join-Path $BackendOut "appsettings.Production.json")) {
 }
 
 Write-Host ""
+Write-Host "=== Copying README for IT ==="
+$ReadmeSource = Join-Path $Root "artifacts\README-התקנה.txt"
+if (Test-Path $ReadmeSource) {
+    Copy-Item $ReadmeSource (Join-Path $DeployDir "README-התקנה.txt") -Force
+}
+
+Write-Host ""
 Write-Host "=== Creating zip ==="
 
 Compress-Archive -Path "$DeployDir\*" -DestinationPath $ZipPath -Force
